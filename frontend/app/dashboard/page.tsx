@@ -10,7 +10,7 @@ import QuizPanel from "@/components/QuizPanel";
 import FlashcardsPanel from "@/components/FlashcardsPanel";
 import ExportBar from "@/components/ExportBar";
 import { generateStudyPackPDF } from "@/lib/pdfGenerator";
-import { encodeQuiz, decodeQuiz, QuizItem } from "@/lib/shareLink";
+import { encodeStudyPack, decodeStudyPack, QuizItem } from "@/lib/shareLink";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import ChatPanel from "@/components/ChatPanel";
@@ -151,11 +151,15 @@ export default function DashboardPage() {
     }, [view, shareCode]);
 
     useEffect(() => {
-        const sharedQuiz = decodeQuiz();
-        if (sharedQuiz) {
-            setQuiz(sharedQuiz);
+        const sharedData = decodeStudyPack();
+        if (sharedData) {
+            setSummary(sharedData.s || []);
+            setQuiz(sharedData.q || []);
+            setKeyTerms(sharedData.k || []);
             setIsSharedView(true);
-            setActiveTab("quiz");
+            setActiveTab("summary");
+            // Clear hash after loading to prevent reuse issues but keep state
+            if (typeof window !== 'undefined') window.location.hash = "";
         } else if (!isLoggedIn) {
             const saved = typeof window !== 'undefined' ? localStorage.getItem('bodh_auth') : null;
             if (saved !== 'true') {
@@ -456,7 +460,8 @@ export default function DashboardPage() {
     };
 
     const handleCopyLink = () => {
-        const url = encodeQuiz(quiz);
+        if (!summary.length && !quiz.length) return;
+        const url = encodeStudyPack(summary, quiz, keyTerms);
         navigator.clipboard.writeText(url);
     };
 
@@ -1151,7 +1156,7 @@ export default function DashboardPage() {
             {!isTutorOpen && hasResults && (
                 <button 
                     onClick={() => handleAskTutor({ type: 'open' })}
-                    className="fixed bottom-[100px] sm:bottom-24 lg:bottom-12 right-6 lg:right-12 z-[90] glass-metal-icon w-16 h-16 sm:w-20 sm:h-20 hover:scale-110 active:scale-95 group transition-all duration-500"
+                    className="fixed bottom-[96px] lg:bottom-12 right-6 lg:right-12 z-[90] glass-metal-icon w-16 h-16 sm:w-20 sm:h-20 hover:scale-110 active:scale-95 group transition-all duration-500"
                     title="Ask Bodh AI Tutor"
                 >
                     {/* Metallic glow effects */}

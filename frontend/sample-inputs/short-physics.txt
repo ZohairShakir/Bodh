@@ -1,0 +1,15 @@
+Physics: Mechanics and Forces
+
+Newton's First Law of Motion, often called the Law of Inertia, states that an object at rest stays at rest, and an object in motion stays in motion with the same speed and in the same direction unless acted upon by an unbalanced force. This tendency of objects to resist changes in their state of motion is called inertia.
+
+Newton's Second Law of Motion provides a quantitative description of force. It states that the acceleration of an object as produced by a net force is directly proportional to the magnitude of the net force, in the same direction as the net force, and inversely proportional to the mass of the object. The relationship is expressed by the famous equation: F = ma (Force equals mass times acceleration).
+
+Newton's Third Law of Motion states that for every action, there is an equal and opposite reaction. This means that in every interaction, there is a pair of forces acting on the two interacting objects. The size of the forces on the first object equals the size of the force on the second object.
+
+Friction is a force that resists the relative motion of solid surfaces, fluid layers, and material elements sliding against each other. There are several types of friction: static, kinetic, rolling, and fluid friction. Static friction acts on objects when they are resting on a surface. For example, if you are walking on the sidewalk, there is static friction between your shoes and the sidewalk. Without it, your feet would slip out from under you.
+
+Gravity is a natural phenomenon by which all things with mass or energy are attracted to one another. On Earth, gravity gives weight to physical objects, and the Moon's gravity causes the tides of the oceans. The acceleration due to gravity on Earth is approximately 9.8 m/s².
+
+Work is done when a force acts upon an object to cause a displacement. It is calculated as the product of the force and the displacement in the direction of the force (W = Fd). The unit of work is the Joule (J).
+
+Power is the rate at which work is done or energy is transferred. It is calculated as work divided by time (P = W/t). The unit of power is the Watt (W).

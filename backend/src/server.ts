@@ -23,8 +23,13 @@ app.use(express.json());
 if (!MONGODB_URI) {
     console.error("CRITICAL: MONGODB_URI is missing in .env");
 } else {
-    mongoose.connect(MONGODB_URI)
-        .then(() => console.log("✅ Connected to MongoDB Cluster"))
+    // Explicitly target 'bodh_db' if not already specified in the URI
+    const connectionUri = MONGODB_URI.includes(' mongodb.net/') && !MONGODB_URI.includes(' mongodb.net/bodh_db') 
+        ? MONGODB_URI.replace('mongodb.net/', 'mongodb.net/bodh_db')
+        : MONGODB_URI;
+
+    mongoose.connect(connectionUri)
+        .then(() => console.log("✅ Connected to MongoDB Cluster (Database: bodh_db)"))
         .catch(err => console.error("❌ MongoDB Connection Error:", err));
 }
 
@@ -319,8 +324,9 @@ app.get('/api/packs/:code', async (req: Request, res: Response) => {
     try {
         const pack = await StudyPackModel.findOne({ code: req.params.code });
         if (!pack) return res.status(404).json({ error: "Pack not found." });
-        // Map back to expected format
-        res.json({ ...pack.content, id: pack.code, createdAt: (pack as any).createdAt });
+        
+        const packObj = pack.toObject() as any;
+        res.json({ ...packObj.content, id: packObj.code, createdAt: packObj.createdAt });
     } catch (err) {
         res.status(500).json({ error: "Failed to retrieve pack." });
     }
@@ -329,7 +335,10 @@ app.get('/api/packs/:code', async (req: Request, res: Response) => {
 app.get('/api/history/:userId', async (req: Request, res: Response) => {
     try {
         const packs = await StudyPackModel.find({ userId: req.params.userId }).sort({ createdAt: -1 });
-        const history = packs.map(p => ({ ...p.content, id: p.code, createdAt: (p as any).createdAt }));
+        const history = packs.map(p => {
+            const pObj = p.toObject() as any;
+            return { ...pObj.content, id: pObj.code, createdAt: pObj.createdAt };
+        });
         res.json(history);
     } catch (err) {
         res.status(500).json({ error: "Failed to fetch history." });
@@ -500,7 +509,8 @@ app.post('/api/arena/:code/answer', async (req: Request, res: Response) => {
                     });
 
                     const pack = await StudyPackModel.findOne({ code });
-                    const totalQ = pack && pack.content.quiz ? pack.content.quiz.length : 0;
+                    const packContent = pack ? (pack.toObject() as any).content : null;
+                    const totalQ = packContent?.quiz?.length || 0;
                     
                     refreshed.currentQuestionIndex += 1;
                     if (refreshed.currentQuestionIndex >= totalQ) {

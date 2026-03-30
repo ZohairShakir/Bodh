@@ -6,6 +6,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
+import nodemailer from 'nodemailer';
+import crypto from 'crypto';
 
 // Models
 import User from './models/User';
@@ -126,6 +128,108 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
         res.json({ token, name: user.name, userId: user._id });
     } catch (err) {
         res.status(500).json({ error: "Login failed." });
+    }
+});
+
+// SOCIAL LOGIN ENDPOINT (Stubs for GitHub/Apple)
+app.post('/api/auth/social-login', async (req: Request, res: Response) => {
+    try {
+        const { email, name, provider, providerId } = req.body;
+        if (!email || !provider || !providerId) {
+            return res.status(400).json({ error: "Email, provider and providerId required." });
+        }
+
+        let user = await User.findOne({ 
+            $or: [
+                { email: email.toLowerCase() },
+                { githubId: provider === 'github' ? providerId : undefined },
+                { appleId: provider === 'apple' ? providerId : undefined }
+            ]
+        });
+
+        if (!user) {
+            // Create new user if not exists
+            const tempPass = crypto.randomBytes(16).toString('hex');
+            const passwordHash = await bcrypt.hash(tempPass, 10);
+            user = new User({ 
+                email: email.toLowerCase(), 
+                name, 
+                passwordHash,
+                githubId: provider === 'github' ? providerId : undefined,
+                appleId: provider === 'apple' ? providerId : undefined
+            });
+            await user.save();
+        } else {
+            // Update provider ID if missing
+            if (provider === 'github' && !user.githubId) user.githubId = providerId;
+            if (provider === 'apple' && !user.appleId) user.appleId = providerId;
+            await user.save();
+        }
+
+        const token = jwt.sign({ id: user._id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
+        res.json({ token, name: user.name, userId: user._id });
+    } catch (err) {
+        res.status(500).json({ error: "Social login failed." });
+    }
+});
+
+// FORGOT PASSWORD
+app.post('/api/auth/forgot-password', async (req: Request, res: Response) => {
+    try {
+        const { email } = req.body;
+        const user = await User.findOne({ email: email.toLowerCase() });
+        if (!user) return res.status(404).json({ error: "User not found." });
+
+        const token = crypto.randomBytes(20).toString('hex');
+        user.resetPasswordToken = token;
+        user.resetPasswordExpires = new Date(Date.now() + 3600000); // 1 hour
+        await user.save();
+
+        const transporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST || 'smtp.gmail.com',
+            port: parseInt(process.env.SMTP_PORT || '587'),
+            auth: {
+                user: process.env.SMTP_USER,
+                pass: process.env.SMTP_PASS
+            }
+        });
+
+        const mailOptions = {
+            to: user.email,
+            from: 'noreply@bodhik.com',
+            subject: 'Bodh Password Reset',
+            text: `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n` +
+                  `Please click on the following link, or paste this into your browser to complete the process:\n\n` +
+                  `http://${req.headers.host}/auth/reset/${token}\n\n` +
+                  `If you did not request this, please ignore this email and your password will remain unchanged.\n`
+        };
+
+        await transporter.sendMail(mailOptions);
+        res.json({ message: "Reset email sent." });
+    } catch (err) {
+        console.error("Forgot Pass Error:", err);
+        res.status(500).json({ error: "Failed to send reset email." });
+    }
+});
+
+app.post('/api/auth/reset-password', async (req: Request, res: Response) => {
+    try {
+        const { token, password } = req.body;
+        const user = await User.findOne({
+            resetPasswordToken: token,
+            resetPasswordExpires: { $gt: new Date() }
+        });
+
+        if (!user) return res.status(400).json({ error: "Token invalid or expired." });
+
+        user.passwordHash = await bcrypt.hash(password, 10);
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpires = undefined;
+        await user.save();
+
+        res.json({ message: "Password reset successful." });
+    } catch (err) {
+        res.status(500).json({ error: "Reset failed." });
     }
 });
 

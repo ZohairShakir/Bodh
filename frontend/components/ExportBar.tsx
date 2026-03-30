@@ -68,23 +68,26 @@ export default function ExportBar({ onDownload, onCopyLink, isVisible }: ExportB
             </div>
 
             {/* Mobile FAB */}
-            <div className="sm:hidden fixed bottom-40 right-6 z-50 flex flex-col items-end gap-3 group">
-                <div className={`flex flex-col items-end gap-3 transition-all duration-300 transform scale-0 origin-bottom-right group-hover:scale-100`}>
+            <div className="sm:hidden fixed bottom-40 right-6 z-50 flex flex-col items-end gap-4 group">
+                <div className={`flex flex-col items-end gap-4 transition-all duration-500 transform scale-0 origin-bottom group-hover:scale-100`}>
                      <button 
                         onClick={handleCopy}
-                        className="w-12 h-12 rounded-full bg-neutral-900 border border-white/10 flex items-center justify-center text-stone-300 shadow-xl"
+                        className="glass-metal w-14 h-14 rounded-full flex items-center justify-center text-white/70 hover:text-white shadow-2xl relative overflow-hidden"
                     >
-                        {copied ? <Check size={18} className="text-emerald-400" /> : <Share2 size={18} />}
+                        {copied ? <Check size={20} className="text-emerald-400" /> : <Share2 size={20} />}
+                        <div className="absolute inset-0 bg-white/5 opacity-0 hover:opacity-100 transition-opacity" />
                     </button>
                     <button 
                         onClick={handleDownload}
-                        className="w-12 h-12 rounded-full bg-neutral-900 border border-white/10 flex items-center justify-center text-stone-300 shadow-xl"
+                        className="glass-metal w-14 h-14 rounded-full flex items-center justify-center text-white/70 hover:text-white shadow-2xl relative overflow-hidden"
                     >
-                        <Download size={18} />
+                        <Download size={20} />
+                        <div className="absolute inset-0 bg-white/5 opacity-0 hover:opacity-100 transition-opacity" />
                     </button>
                 </div>
-                <button className="w-16 h-16 rounded-full bg-indigo-600 text-white shadow-2xl flex items-center justify-center active:scale-95 transition-transform shadow-indigo-600/30">
-                    <FileDown size={28} />
+                <button className="glass-metal-fab w-18 h-18 text-white hover:scale-110 active:scale-95 transition-all">
+                    <div className="absolute inset-0 bg-indigo-500/20 blur-xl group-hover:bg-indigo-500/30 transition-all" />
+                    <FileDown size={32} className="relative z-10" />
                 </button>
             </div>
         </>

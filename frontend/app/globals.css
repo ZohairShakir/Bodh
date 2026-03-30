@@ -27,6 +27,9 @@
     
     --background: #060606;
     --foreground: #f0ede8;
+    
+    --metal-gradient: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.02) 50%, rgba(255, 255, 255, 0.08) 100%);
+    --metal-border: rgba(255, 255, 255, 0.12);
 }
 
 @layer base {
@@ -85,6 +88,50 @@
 .neural-mesh {
   background-image: radial-gradient(circle at 2px 2px, rgba(255,255,255,0.05) 1px, transparent 0);
   background-size: 24px 24px;
+}
+
+/* ── PREMIUM GLASS METAL ── */
+.glass-metal {
+    @apply backdrop-blur-[20px] bg-white/[0.03] border border-white/10;
+    background-image: var(--metal-gradient);
+    box-shadow: 
+        0 10px 40px -10px rgba(0,0,0,0.5),
+        inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+.glass-metal-icon {
+    @apply flex items-center justify-center rounded-2xl transition-all duration-500 overflow-hidden relative;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+    border: 1px solid var(--metal-border);
+    box-shadow: 
+        0 8px 32px rgba(0,0,0,0.4),
+        inset 0 1px 1px rgba(255,255,255,0.2);
+}
+
+.glass-metal-icon::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+    transform: rotate(45deg);
+    animation: shine 6s infinite;
+}
+
+@keyframes shine {
+    0% { transform: translateX(-100%) rotate(45deg); }
+    20%, 100% { transform: translateX(100%) rotate(45deg); }
+}
+
+.glass-metal-fab {
+    @apply w-16 h-16 rounded-full flex items-center justify-center transition-all duration-500 relative overflow-hidden;
+    background: linear-gradient(135deg, #222, #000);
+    border: 1px solid rgba(255,255,255,0.15);
+    box-shadow: 
+        0 20px 50px rgba(0,0,0,0.6),
+        inset 0 1px 1px rgba(255,255,255,0.15);
 }
 
 /* ── CURSOR ── */

@@ -1151,11 +1151,15 @@ export default function DashboardPage() {
             {!isTutorOpen && hasResults && (
                 <button 
                     onClick={() => handleAskTutor({ type: 'open' })}
-                    className="fixed bottom-16 sm:bottom-24 lg:bottom-10 right-6 lg:right-10 z-[90] w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white shadow-[0_10px_40px_rgba(99,102,241,0.4)] hover:shadow-[0_15px_50px_rgba(99,102,241,0.6)] hover:scale-110 active:scale-95 transition-all flex items-center justify-center group border border-white/20"
+                    className="fixed bottom-16 sm:bottom-24 lg:bottom-10 right-6 lg:right-10 z-[90] glass-metal-icon w-16 h-16 sm:w-20 sm:h-20 hover:scale-110 active:scale-95 group"
                     title="Ask Bodh AI Tutor"
                 >
-                    <Bot size={28} className="group-hover:animate-bounce" />
-                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-[#0A0A0B] rounded-full" />
+                    {/* Metallic glow effects */}
+                    <div className="absolute inset-0 bg-violet-600/10 blur-xl group-hover:bg-violet-600/20 transition-all duration-700" />
+                    <div className="relative z-10 flex items-center justify-center">
+                        <Bot size={32} className="text-white/80 group-hover:text-white transition-colors duration-500 group-hover:animate-bounce" />
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-[#0A0A0B] rounded-full shadow-[0_0_10px_#10b981]" />
+                    </div>
                 </button>
             )}
 

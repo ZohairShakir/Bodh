@@ -10,17 +10,20 @@ function AuthContent() {
     const { login, isLoggedIn } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const [mode, setMode] = useState('login');
-    const [name, setName] = useState('');
+    
+    const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('signup');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [showPassword, setShowPassword] = useState(false);
-    const [error, setError] = useState('');
+    const [name, setName] = useState('');
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
 
     useEffect(() => {
         const modeParam = searchParams.get('mode');
         if (modeParam === 'login') setMode('login');
+        if (modeParam === 'forgot') setMode('forgot');
     }, [searchParams]);
 
     useEffect(() => {
@@ -33,9 +36,23 @@ function AuthContent() {
         e.preventDefault();
         setLoading(true);
         setError('');
+        setSuccess('');
         
         try {
             const apiUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/generate', '') || "http://localhost:5000/api";
+            
+            if (mode === 'forgot') {
+                const res = await fetch(`${apiUrl}/auth/forgot-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed to send reset email');
+                setSuccess('Check your email for reset instructions!');
+                return;
+            }
+
             const endpoint = mode === 'signup' ? '/auth/register' : '/auth/login';
             
             const res = await fetch(`${apiUrl}${endpoint}`, {
@@ -54,6 +71,42 @@ function AuthContent() {
             router.push('/dashboard');
         } catch (err: any) {
             setError(err.message || 'Something went wrong. Please try again.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSocialLogin = async (provider: string) => {
+        setError('');
+        setLoading(true);
+        try {
+            // Simplified social login stub
+            // In a real app, this would redirect to OAuth or use an SDK
+            // The backend endpoint we added /api/auth/social-login handles linking/creating
+            console.log(`Logging in with ${provider}...`);
+            
+            // Simulation: let's pretend we got a provider ID
+            const providerId = `${provider}_test_${Date.now()}`;
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/generate', '') || "http://localhost:5000/api";
+            
+            const res = await fetch(`${apiUrl}/auth/social-login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    email: email || `user_${Date.now()}@example.com`, 
+                    name: name || 'Social User', 
+                    provider, 
+                    providerId 
+                })
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Social login failed');
+
+            login(data.token, data.name, data.userId);
+            router.push('/dashboard');
+        } catch (err: any) {
+            setError(err.message || `Failed to log in with ${provider}`);
         } finally {
             setLoading(false);
         }
@@ -118,16 +171,17 @@ function AuthContent() {
                                 </svg>
                             </div>
                             <h2 className="font-playfair italic" style={{ fontSize: '32px', fontWeight: 400, marginBottom: '8px', color: 'var(--white)' }}>
-                                {mode === 'signup' ? 'Create an account' : 'Welcome back'}
+                                {mode === 'signup' ? 'Create an account' : (mode === 'forgot' ? 'Reset Password' : 'Welcome back')}
                             </h2>
                             <p style={{ fontSize: '12px', color: 'var(--silver)', lineHeight: 1.6 }}>
                                 {mode === 'signup' 
                                     ? 'Access your tasks, notes, and projects anytime, anywhere.' 
-                                    : 'Enter your details to access your account.'}
+                                    : (mode === 'forgot' ? 'Enter your email to receive recovery instructions.' : 'Enter your details to access your account.')}
                             </p>
                         </div>
 
                         {error && <div style={{ color: '#ff4d4d', fontSize: '12px', marginBottom: '16px' }}>{error}</div>}
+                        {success && <div style={{ color: '#00e676', fontSize: '12px', marginBottom: '16px' }}>{success}</div>}
 
                         <form onSubmit={handleSubmit}>
                             {mode === 'signup' && (
@@ -160,37 +214,46 @@ function AuthContent() {
                                     />
                                 </div>
                             </div>
-                            <div className="form-group" style={{ marginBottom: '18px' }}>
-                                <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 500, color: 'var(--silver)', marginBottom: '6px' }}>
-                                    {mode === 'signup' ? 'Create password' : 'Password'}
-                                </label>
-                                <div className="input-wrapper" style={{ position: 'relative' }}>
-                                    <input 
-                                        type={showPassword ? 'text' : 'password'} 
-                                        className="form-input" 
-                                        style={{ width: '100%', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.08)', borderBottom: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', padding: '12px 14px', fontSize: '13.5px', color: 'var(--white)', outline: 'none' }}
-                                        placeholder="••••••••••••" 
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        required 
-                                    />
-                                    <button 
-                                        type="button" 
-                                        className="eye-toggle" 
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--silver)', padding: '4px', cursor: 'pointer' }}
-                                    >
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px' }}>
-                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                            <circle cx="12" cy="12" r="3"></circle>
-                                        </svg>
-                                    </button>
+                            
+                            {mode !== 'forgot' && (
+                                <div className="form-group" style={{ marginBottom: '18px' }}>
+                                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 500, color: 'var(--silver)', marginBottom: '6px' }}>
+                                        {mode === 'signup' ? 'Create password' : 'Password'}
+                                    </label>
+                                    <div className="input-wrapper" style={{ position: 'relative' }}>
+                                        <input 
+                                            type={showPassword ? 'text' : 'password'} 
+                                            className="form-input" 
+                                            style={{ width: '100%', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.08)', borderBottom: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', padding: '12px 14px', fontSize: '13.5px', color: 'var(--white)', outline: 'none' }}
+                                            placeholder="••••••••••••" 
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            required 
+                                        />
+                                        <button 
+                                            type="button" 
+                                            className="eye-toggle" 
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--silver)', padding: '4px', cursor: 'pointer' }}
+                                        >
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px' }}>
+                                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                                <circle cx="12" cy="12" r="3"></circle>
+                                            </svg>
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
                             {mode === 'login' && (
                                 <div style={{ textAlign: 'right', marginBottom: '24px' }}>
-                                    <a href="#" style={{ fontSize: '11.5px', color: 'var(--silver)', textDecoration: 'none' }}>Forgot password?</a>
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setMode('forgot')}
+                                        style={{ background: 'none', border: 'none', fontSize: '11.5px', color: 'var(--silver)', cursor: 'pointer', outline: 'none' }}
+                                    >
+                                        Forgot password?
+                                    </button>
                                 </div>
                             )}
 
@@ -200,37 +263,59 @@ function AuthContent() {
                                 disabled={loading}
                                 style={{ width: '100%', background: 'var(--white)', color: 'var(--black)', border: 'none', borderRadius: '8px', padding: '14px', fontSize: '13.5px', fontWeight: 500, marginTop: '8px', transition: 'all 0.25s', boxShadow: '0 4px 12px rgba(255, 255, 255, 0.15)', opacity: loading ? 0.7 : 1, cursor: 'pointer' }}
                             >
-                                {loading ? 'Processing...' : (mode === 'signup' ? 'Create account' : 'Log in')}
+                                {loading ? 'Processing...' : (mode === 'signup' ? 'Create account' : (mode === 'forgot' ? 'Send Recovery Email' : 'Log in'))}
                             </button>
                             
-                            <div className="divider" style={{ display: 'flex', alignItems: 'center', textAlign: 'center', margin: '24px 0', color: 'rgba(255, 255, 255, 0.25)', fontSize: '11px' }}>
-                                <hr style={{ flex: 1, border: 'none', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }} />
-                                <span style={{ padding: '0 14px' }}>or continue with</span>
-                                <hr style={{ flex: 1, border: 'none', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }} />
-                            </div>
+                            {mode !== 'forgot' && (
+                                <>
+                                    <div className="divider" style={{ display: 'flex', alignItems: 'center', textAlign: 'center', margin: '24px 0', color: 'rgba(255, 255, 255, 0.25)', fontSize: '11px' }}>
+                                        <hr style={{ flex: 1, border: 'none', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }} />
+                                        <span style={{ padding: '0 14px' }}>or continue with</span>
+                                        <hr style={{ flex: 1, border: 'none', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }} />
+                                    </div>
 
-                            <div className="social-logins" style={{ display: 'flex', gap: '12px' }}>
-                                {['google', 'github', 'apple'].map(provider => (
-                                    <button key={provider} type="button" className="btn-social" style={{ cursor: 'pointer', flex: 1, background: 'transparent', border: '1px solid rgba(255, 255, 255, 0.12)', borderRadius: '8px', padding: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }}>
-                                        <svg viewBox="0 0 24 24" style={{ width: '16px', height: '16px', fill: 'var(--white)' }}>
-                                            {provider === 'google' && <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>}
-                                            {provider === 'github' && <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.699-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.564 9.564 0 0112 6.844c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.161 22 16.418 22 12c0-5.523-4.477-10-10-10z" />}
-                                            {provider === 'apple' && <path d="M16.345 13.929c-.015 3.091 2.527 4.06 2.551 4.07-.024.081-.397 1.365-1.298 2.684-.78 1.139-1.595 2.274-2.86 2.298-1.242.023-1.644-.73-3.072-.73-1.428 0-1.874.707-3.093.754-1.266.046-2.19-1.206-2.973-2.34-1.602-2.31-2.825-6.521-1.192-9.35 .807-1.393 2.254-2.277 3.82-2.298 1.22-.023 2.378.82 3.123.82.742 0 2.144-.99 3.593-.843  1.52.174 2.894.614 3.733 1.84 -3.122 1.873 -2.628 6.307 .668 7.095zM15.42 4.144c.677-.82 1.133-1.956 1.008-3.091-1.002.04-2.164.667-2.861 1.488-.553.649-1.097 1.802-.953 2.913 1.116.086 2.13-.589 2.806-1.31z" />}
-                                        </svg>
-                                    </button>
-                                ))}
-                            </div>
+                                    <div className="social-logins" style={{ display: 'flex', gap: '12px' }}>
+                                        {['google', 'github', 'apple'].map(provider => (
+                                            <button 
+                                                key={provider} 
+                                                type="button" 
+                                                onClick={() => handleSocialLogin(provider)}
+                                                className="btn-social" 
+                                                style={{ cursor: 'pointer', flex: 1, background: 'transparent', border: '1px solid rgba(255, 255, 255, 0.12)', borderRadius: '8px', padding: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }}
+                                            >
+                                                <svg viewBox="0 0 24 24" style={{ width: '16px', height: '16px', fill: 'var(--white)' }}>
+                                                    {provider === 'google' && <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>}
+                                                    {provider === 'github' && <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.699-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.564 9.564 0 0112 6.844c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.161 22 16.418 22 12c0-5.523-4.477-10-10-10z" />}
+                                                    {provider === 'apple' && <path d="M16.345 13.929c-.015 3.091 2.527 4.06 2.551 4.07-.024.081-.397 1.365-1.298 2.684-.78 1.139-1.595 2.274-2.86 2.298-1.242.023-1.644-.73-3.072-.73-1.428 0-1.874.707-3.093.754-1.266.046-2.19-1.206-2.973-2.34-1.602-2.31-2.825-6.521-1.192-9.35 .807-1.393 2.254-2.277 3.82-2.298 1.22-.023 2.378.82 3.123.82.742 0 2.144-.99 3.593-.843  1.52.174 2.894.614 3.733 1.84 -3.122 1.873 -2.628 6.307 .668 7.095zM15.42 4.144c.677-.82 1.133-1.956 1.008-3.091-1.002.04-2.164.667-2.861 1.488-.553.649-1.097 1.802-.953 2.913 1.116.086 2.13-.589 2.806-1.31z" />}
+                                                </svg>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
 
                             <div className="form-footer" style={{ textAlign: 'center', marginTop: '26px', fontSize: '12px', color: 'var(--silver)' }}>
-                                {mode === 'signup' ? 'Already have an account?' : "Don't have an account?"}
-                                {' '}
-                                <button 
-                                    type="button" 
-                                    onClick={() => setMode(mode === 'signup' ? 'login' : 'signup')}
-                                    style={{ background: 'none', border: 'none', color: 'var(--accent)', fontWeight: 500, cursor: 'pointer' }}
-                                >
-                                    {mode === 'signup' ? 'Log in' : 'Register'}
-                                </button>
+                                {mode === 'forgot' ? (
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setMode('login')}
+                                        style={{ background: 'none', border: 'none', color: 'var(--accent)', fontWeight: 500, cursor: 'pointer' }}
+                                    >
+                                        Back to Log in
+                                    </button>
+                                ) : (
+                                    <>
+                                        {mode === 'signup' ? 'Already have an account?' : "Don't have an account?"}
+                                        {' '}
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setMode(mode === 'signup' ? 'login' : 'signup')}
+                                            style={{ background: 'none', border: 'none', color: 'var(--accent)', fontWeight: 500, cursor: 'pointer' }}
+                                        >
+                                            {mode === 'signup' ? 'Log in' : 'Register'}
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </form>
                     </div>

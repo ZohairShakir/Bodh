@@ -14,7 +14,7 @@ interface TutorPanelProps {
   onClose: () => void;
   context: any;
   chatHistory: Message[];
-  setChatHistory: (history: Message[]) => void;
+  setChatHistory: React.Dispatch<React.SetStateAction<Message[]>>;
   userName?: string;
 }
 

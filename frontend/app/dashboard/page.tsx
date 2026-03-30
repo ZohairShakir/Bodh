@@ -1151,7 +1151,7 @@ export default function DashboardPage() {
             {!isTutorOpen && hasResults && (
                 <button 
                     onClick={() => handleAskTutor({ type: 'open' })}
-                    className="fixed bottom-16 sm:bottom-24 lg:bottom-10 right-6 lg:right-10 z-[90] glass-metal-icon w-16 h-16 sm:w-20 sm:h-20 hover:scale-110 active:scale-95 group"
+                    className="fixed bottom-[100px] sm:bottom-24 lg:bottom-12 right-6 lg:right-12 z-[90] glass-metal-icon w-16 h-16 sm:w-20 sm:h-20 hover:scale-110 active:scale-95 group transition-all duration-500"
                     title="Ask Bodh AI Tutor"
                 >
                     {/* Metallic glow effects */}

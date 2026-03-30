@@ -11,7 +11,7 @@ function AuthContent() {
     const { login, isLoggedIn } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
-    
+
     const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -42,10 +42,10 @@ function AuthContent() {
         setLoading(true);
         setError('');
         setSuccess('');
-        
+
         try {
             const apiUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/generate', '') || "http://localhost:5000/api";
-            
+
             if (mode === 'forgot') {
                 const res = await fetch(`${apiUrl}/auth/forgot-password`, {
                     method: 'POST',
@@ -59,19 +59,19 @@ function AuthContent() {
             }
 
             const endpoint = mode === 'signup' ? '/auth/register' : '/auth/login';
-            
+
             const res = await fetch(`${apiUrl}${endpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password, name: mode === 'signup' ? name : undefined })
             });
-            
+
             const data = await res.json();
-            
+
             if (!res.ok) {
                 throw new Error(data.error || 'Authentication failed');
             }
-            
+
             login(data.token, data.name, data.userId);
             router.push('/dashboard');
         } catch (err: any) {
@@ -95,11 +95,11 @@ function AuthContent() {
             setError('');
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/generate', '') || "http://localhost:5000/api";
-                
+
                 const res = await fetch(`${apiUrl}/auth/social-login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         provider: 'google',
                         credential: tokenResponse.access_token
                     })
@@ -134,7 +134,7 @@ function AuthContent() {
             const res = await fetch(`${apiUrl}/auth/social-login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     email: socialEmail.trim().toLowerCase(),
                     name: socialName.trim(),
                     provider: socialProvider,
@@ -171,17 +171,17 @@ function AuthContent() {
             </div>
 
             {/* Auth Container */}
-            <main className="auth-container relative z-10 w-full max-w-[900px] min-h-[550px] flex flex-col md:flex-row bg-[#0c0c0c]/50 backdrop-blur-2xl border border-white/10 rounded-[20px] shadow-[0_30px_60px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.05)] overflow-hidden" 
-                  style={{ animation: 'fade-in-up 0.8s ease forwards' }}>
-                
+            <main className="auth-container relative z-10 w-full max-w-[900px] min-h-[550px] flex flex-col md:flex-row bg-[#0c0c0c]/50 backdrop-blur-2xl border border-white/10 rounded-[20px] shadow-[0_30px_60px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.05)] overflow-hidden"
+                style={{ animation: 'fade-in-up 0.8s ease forwards' }}>
+
                 {/* Left Branding Panel */}
-                <div className="brand-panel hidden md:flex flex-1 flex-col justify-between p-10 relative overflow-hidden border-r border-white/10" 
-                     style={{ background: 'linear-gradient(145deg, rgba(239, 159, 39, 0.2) 0%, rgba(108, 99, 255, 0.15) 60%, rgba(6, 6, 6, 0.9) 100%), #0a0a0c' }}>
+                <div className="brand-panel hidden md:flex flex-1 flex-col justify-between p-10 relative overflow-hidden border-r border-white/10"
+                    style={{ background: 'linear-gradient(145deg, rgba(239, 159, 39, 0.2) 0%, rgba(108, 99, 255, 0.15) 60%, rgba(6, 6, 6, 0.9) 100%), #0a0a0c' }}>
                     <Link href="/" className="brand-logo flex items-center gap-3 no-underline text-white z-10">
                         <div className="top-logo-auth w-11 h-11 bg-white/5 border border-white/10 rounded-full flex items-center justify-center p-2.5">
-                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-6 h-6">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M20.24 12.24a5 5 0 00-8.49-4.8 5 5 0 00-8.49 4.8 5 5 0 008.49 4.8 5 5 0 008.49-4.8z" />
-                        </svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-6 h-6">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M20.24 12.24a5 5 0 00-8.49-4.8 5 5 0 00-8.49 4.8 5 5 0 008.49 4.8 5 5 0 008.49-4.8z" />
+                            </svg>
                         </div>
                         <span className="font-playfair italic font-bold text-2xl tracking-tight text-white/90">Bodh</span>
                     </Link>
@@ -214,8 +214,8 @@ function AuthContent() {
                                 {mode === 'signup' ? 'Create an account' : (mode === 'forgot' ? 'Reset Password' : 'Welcome back')}
                             </h2>
                             <p style={{ fontSize: '12px', color: 'var(--silver)', lineHeight: 1.6 }}>
-                                {mode === 'signup' 
-                                    ? 'Access your tasks, notes, and projects anytime, anywhere.' 
+                                {mode === 'signup'
+                                    ? 'Access your tasks, notes, and projects anytime, anywhere.'
                                     : (mode === 'forgot' ? 'Enter your email to receive recovery instructions.' : 'Enter your details to access your account.')}
                             </p>
                         </div>
@@ -228,14 +228,14 @@ function AuthContent() {
                                 <div className="form-group" style={{ marginBottom: '18px' }}>
                                     <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 500, color: 'var(--silver)', marginBottom: '6px' }}>Full name</label>
                                     <div className="input-wrapper" style={{ position: 'relative' }}>
-                                        <input 
-                                            type="text" 
-                                            className="form-input" 
+                                        <input
+                                            type="text"
+                                            className="form-input"
                                             style={{ width: '100%', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.08)', borderBottom: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', padding: '12px 14px', fontSize: '13.5px', color: 'var(--white)', outline: 'none' }}
-                                            placeholder="Zohai" 
+                                            placeholder="Zohai"
                                             value={name}
                                             onChange={(e) => setName(e.target.value)}
-                                            required 
+                                            required
                                         />
                                     </div>
                                 </div>
@@ -243,36 +243,36 @@ function AuthContent() {
                             <div className="form-group" style={{ marginBottom: '18px' }}>
                                 <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 500, color: 'var(--silver)', marginBottom: '6px' }}>Your email</label>
                                 <div className="input-wrapper" style={{ position: 'relative' }}>
-                                    <input 
-                                        type="email" 
-                                        className="form-input" 
+                                    <input
+                                        type="email"
+                                        className="form-input"
                                         style={{ width: '100%', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.08)', borderBottom: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', padding: '12px 14px', fontSize: '13.5px', color: 'var(--white)', outline: 'none' }}
-                                        placeholder="topper@university.in" 
+                                        placeholder="topper@university.in"
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
-                                        required 
+                                        required
                                     />
                                 </div>
                             </div>
-                            
+
                             {mode !== 'forgot' && (
                                 <div className="form-group" style={{ marginBottom: '18px' }}>
                                     <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 500, color: 'var(--silver)', marginBottom: '6px' }}>
                                         {mode === 'signup' ? 'Create password' : 'Password'}
                                     </label>
                                     <div className="input-wrapper" style={{ position: 'relative' }}>
-                                        <input 
-                                            type={showPassword ? 'text' : 'password'} 
-                                            className="form-input" 
+                                        <input
+                                            type={showPassword ? 'text' : 'password'}
+                                            className="form-input"
                                             style={{ width: '100%', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.08)', borderBottom: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', padding: '12px 14px', fontSize: '13.5px', color: 'var(--white)', outline: 'none' }}
-                                            placeholder="••••••••••••" 
+                                            placeholder="••••••••••••"
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
-                                            required 
+                                            required
                                         />
-                                        <button 
-                                            type="button" 
-                                            className="eye-toggle" 
+                                        <button
+                                            type="button"
+                                            className="eye-toggle"
                                             onClick={() => setShowPassword(!showPassword)}
                                             style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--silver)', padding: '4px', cursor: 'pointer' }}
                                         >
@@ -287,8 +287,8 @@ function AuthContent() {
 
                             {mode === 'login' && (
                                 <div style={{ textAlign: 'right', marginBottom: '24px' }}>
-                                    <button 
-                                        type="button" 
+                                    <button
+                                        type="button"
                                         onClick={() => setMode('forgot')}
                                         style={{ background: 'none', border: 'none', fontSize: '11.5px', color: 'var(--silver)', cursor: 'pointer', outline: 'none' }}
                                     >
@@ -297,15 +297,15 @@ function AuthContent() {
                                 </div>
                             )}
 
-                            <button 
-                                type="submit" 
+                            <button
+                                type="submit"
                                 className="btn-submit"
                                 disabled={loading}
                                 style={{ width: '100%', background: 'var(--white)', color: 'var(--black)', border: 'none', borderRadius: '8px', padding: '14px', fontSize: '13.5px', fontWeight: 500, marginTop: '8px', transition: 'all 0.25s', boxShadow: '0 4px 12px rgba(255, 255, 255, 0.15)', opacity: loading ? 0.7 : 1, cursor: 'pointer' }}
                             >
                                 {loading ? 'Processing...' : (mode === 'signup' ? 'Create account' : (mode === 'forgot' ? 'Send Recovery Email' : 'Log in'))}
                             </button>
-                            
+
                             {mode !== 'forgot' && (
                                 <>
                                     <div className="divider" style={{ display: 'flex', alignItems: 'center', textAlign: 'center', margin: '24px 0', color: 'rgba(255, 255, 255, 0.25)', fontSize: '11px' }}>
@@ -356,14 +356,24 @@ function AuthContent() {
                                         </form>
                                     ) : (
                                         <div className="social-logins" style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
-                                            <button 
-                                                type="button" 
+                                            <button
+                                                type="button"
                                                 onClick={() => googleLogin()}
-                                                className="btn-social" 
+                                                className="btn-social"
                                                 style={{ cursor: 'pointer', background: 'transparent', border: '1px solid rgba(255, 255, 255, 0.12)', borderRadius: '50%', aspectRatio: '1/1', padding: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s', width: '56px', height: '56px' }}
                                             >
-                                                <svg viewBox="0 0 24 24" style={{ width: '22px', height: '22px', fill: 'var(--white)' }}>
-                                                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                                <svg
+                                                    viewBox="0 0 48 48"
+                                                    width="22"
+                                                    height="22"
+                                                    fill="currentColor"
+                                                    style={{
+                                                        color: 'white',
+                                                        width: "22px",
+                                                        height: "22px",
+                                                    }}
+                                                >
+                                                    <path d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z" />
                                                 </svg>
                                             </button>
                                         </div>
@@ -373,8 +383,8 @@ function AuthContent() {
 
                             <div className="form-footer" style={{ textAlign: 'center', marginTop: '26px', fontSize: '12px', color: 'var(--silver)' }}>
                                 {mode === 'forgot' ? (
-                                    <button 
-                                        type="button" 
+                                    <button
+                                        type="button"
                                         onClick={() => setMode('login')}
                                         style={{ background: 'none', border: 'none', color: 'var(--accent)', fontWeight: 500, cursor: 'pointer' }}
                                     >
@@ -384,8 +394,8 @@ function AuthContent() {
                                     <>
                                         {mode === 'signup' ? 'Already have an account?' : "Don't have an account?"}
                                         {' '}
-                                        <button 
-                                            type="button" 
+                                        <button
+                                            type="button"
                                             onClick={() => setMode(mode === 'signup' ? 'login' : 'signup')}
                                             style={{ background: 'none', border: 'none', color: 'var(--accent)', fontWeight: 500, cursor: 'pointer' }}
                                         >

@@ -52,16 +52,19 @@ app.get('/', (req, res) => {
 
 // DATABASE CONNECTION
 if (!MONGODB_URI) {
-    console.error("CRITICAL: MONGODB_URI is missing in .env");
+    console.error("⚠️ WARNING: MONGODB_URI is missing. Persistent features will not work.");
 } else {
-    // Explicitly target 'bodh_db' if not already specified in the URI
-    const connectionUri = MONGODB_URI.includes(' mongodb.net/') && !MONGODB_URI.includes(' mongodb.net/bodh_db') 
-        ? MONGODB_URI.replace('mongodb.net/', 'mongodb.net/bodh_db')
-        : MONGODB_URI;
+    try {
+        const connectionUri = MONGODB_URI.includes('mongodb.net/') && !MONGODB_URI.includes('mongodb.net/bodh_db') 
+            ? MONGODB_URI.replace('mongodb.net/', 'mongodb.net/bodh_db')
+            : MONGODB_URI;
 
-    mongoose.connect(connectionUri)
-        .then(() => console.log("✅ Connected to MongoDB Cluster (Database: bodh_db)"))
-        .catch(err => console.error("❌ MongoDB Connection Error:", err));
+        mongoose.connect(connectionUri)
+            .then(() => console.log("✅ Connected to MongoDB Cluster (Database: bodh_db)"))
+            .catch(err => console.error("❌ MongoDB Connection Error:", err));
+    } catch (err) {
+        console.error("❌ Fatal MongoDB Setup Error (Possibly URI format):", err);
+    }
 }
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "missing" });

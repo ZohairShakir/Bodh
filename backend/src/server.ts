@@ -16,7 +16,7 @@ const port = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'bodh_secure_jwt_secret_2026';
 const MONGODB_URI = process.env.MONGODB_URI;
 
-// ROBUST CORS CONFIGURATION
+// EXPLICIT CORS CONFIGURATION
 const allowedOrigins = [
   "https://bodhik.vercel.app",
   "http://localhost:3000",
@@ -24,19 +24,17 @@ const allowedOrigins = [
 ];
 
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl) or matching origins
-    if (!origin || allowedOrigins.includes(origin) || origin.endsWith(".vercel.app")) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: allowedOrigins,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-  credentials: true,
-  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
+  credentials: true
 }));
+
+// ADDED LOGGING MIDDLEWARE - Check Railway Logs!
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
+  next();
+});
 
 // Handles preflight requests globally
 app.options("*", cors());

@@ -16,20 +16,41 @@ const port = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'bodh_secure_jwt_secret_2026';
 const MONGODB_URI = process.env.MONGODB_URI;
 
+// ROBUST CORS CONFIGURATION
+const allowedOrigins = [
+  "https://bodhik.vercel.app",
+  "http://localhost:3000",
+  "http://localhost:5000"
+];
+
 app.use(cors({
-  origin: [
-    "https://bodhik.vercel.app",
-    "http://localhost:3000",
-  ],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl) or matching origins
+    if (!origin || allowedOrigins.includes(origin) || origin.endsWith(".vercel.app")) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
   credentials: true,
+  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
 }));
 
-// Handles preflight requests
+// Handles preflight requests globally
 app.options("*", cors());
 
 app.use(express.json());
+
+// HEALTH CHECK ENDPOINT
+app.get('/', (req, res) => {
+    res.json({ 
+        status: "Bodh Backend is Live", 
+        database: mongoose.connection.readyState === 1 ? "Connected" : "Disconnected",
+        timestamp: new Date()
+    });
+});
 
 // DATABASE CONNECTION
 if (!MONGODB_URI) {

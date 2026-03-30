@@ -233,7 +233,7 @@ app.post('/api/packs/share', async (req: Request, res: Response) => {
         });
         await newPack.save();
 
-        if (userId) {
+        if (userId && mongoose.Types.ObjectId.isValid(userId)) {
             await User.findByIdAndUpdate(userId, { $addToSet: { history: code } });
         }
 
@@ -255,7 +255,11 @@ app.get('/api/packs/:code', async (req: Request, res: Response) => {
 
 app.get('/api/history/:userId', async (req: Request, res: Response) => {
     try {
-        const user = await User.findById(req.params.userId);
+        const { userId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return res.json([]); // Return empty rather than 500 for compatibility
+        }
+        const user = await User.findById(userId);
         if (!user) return res.json([]);
         const history = await StudyPack.find({ code: { $in: user.history } }).sort({ createdAt: -1 });
         res.json(history);
@@ -266,7 +270,11 @@ app.get('/api/history/:userId', async (req: Request, res: Response) => {
 
 app.delete('/api/history/:userId/:code', async (req: Request, res: Response) => {
     try {
-        await User.findByIdAndUpdate(req.params.userId, { $pull: { history: req.params.code } });
+        const { userId, code } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).json({ error: "Invalid User ID" });
+        }
+        await User.findByIdAndUpdate(userId, { $pull: { history: code } });
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: "Delete failed." });
@@ -322,17 +330,20 @@ app.post('/api/arena/:code/join', async (req: Request, res: Response) => {
         const { code } = req.params;
         const { user } = req.body;
         
+        // Find by code, but ensure we don't crash on invalid codes
         let arena = await ArenaSession.findOne({ code });
         if (!arena) {
-            arena = new ArenaSession({ code, participants: {} });
+            arena = new ArenaSession({ code, participants: new Map() });
         }
         
-        if (!arena.participants.has(user)) {
+        if (!arena.participants || !arena.participants.has(user)) {
             arena.participants.set(user, { user, isReady: false, score: 0, hasAnswered: false, lastAnswerCorrect: null });
+            arena.markModified('participants');
             await arena.save();
         }
         res.json(arena);
     } catch (err) {
+        console.error("Join Arena Error:", err);
         res.status(500).json({ error: "Lobby join failed." });
     }
 });

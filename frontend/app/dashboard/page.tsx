@@ -87,20 +87,21 @@ export default function DashboardPage() {
                 const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/chat/${shareCode}`);
                 if (!res.ok) return;
                 const data = await res.json();
+                if (!Array.isArray(data)) return; // Safety check
                 
                 // Parse Duel Results
                 const duels = data
-                    .filter((m: any) => m.message.startsWith('SYSTEM_DUEL:'))
+                    .filter((m: any) => m.message && m.message.startsWith('SYSTEM_DUEL:'))
                     .map((m: any) => {
                         const [s, t] = m.message.replace('SYSTEM_DUEL:', '').split('/');
                         return { user: m.user, score: parseInt(s), total: parseInt(t) };
                     });
-                setDuelResults(duels);
+                setDuelResults(duels || []);
 
                 if (data.length > lastMsgCountRef.current) {
                     const latest = data[data.length - 1];
                     // Only notify if someone else sent it and it's not a system duel message
-                    if (latest.user !== (displayName || userName || 'Visitor') && !latest.message.startsWith('SYSTEM_DUEL:')) {
+                    if (latest && latest.user !== (displayName || userName || 'Visitor') && latest.message && !latest.message.startsWith('SYSTEM_DUEL:')) {
                         setChatToast({ user: latest.user, preview: latest.message });
                         setTimeout(() => setChatToast(null), 5000); // hide after 5s
                     }
@@ -142,7 +143,9 @@ export default function DashboardPage() {
         if (view === 'chat' && shareCode) {
             fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/chat/${shareCode}`)
                 .then(r => r.json())
-                .then(d => lastMsgCountRef.current = d.length)
+                .then(d => {
+                   if (Array.isArray(d)) lastMsgCountRef.current = d.length;
+                })
                 .catch(() => {});
         }
     }, [view, shareCode]);
@@ -162,14 +165,21 @@ export default function DashboardPage() {
     }, [isLoggedIn, router]);
 
     // Fetch History
+    const { userId } = useAuth();
     useEffect(() => {
-        if (isLoggedIn && userName) {
-            fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/history/${userName}`)
+        if (isLoggedIn && userId) {
+            fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/history/${userId}`)
                 .then(res => res.json())
-                .then(setHistory)
-                .catch(console.error);
+                .then(data => {
+                    if (Array.isArray(data)) setHistory(data);
+                    else setHistory([]);
+                })
+                .catch(err => {
+                    console.error("History Load Error:", err);
+                    setHistory([]);
+                });
         }
-    }, [isLoggedIn, userName]);
+    }, [isLoggedIn, userId]);
 
     // Load saved settings from localStorage - Keyed by user to prevent name bleed
     useEffect(() => {

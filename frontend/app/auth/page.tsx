@@ -50,7 +50,7 @@ function AuthContent() {
                 throw new Error(data.error || 'Authentication failed');
             }
             
-            login(data.token, data.name);
+            login(data.token, data.name, data.userId);
             router.push('/dashboard');
         } catch (err: any) {
             setError(err.message || 'Something went wrong. Please try again.');

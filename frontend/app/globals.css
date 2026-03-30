@@ -483,6 +483,38 @@ footer p, .flinks a { @apply text-white/25 text-[11.5px] no-underline cursor-non
     .nav-links { @apply hidden !important; }
     .hamburger { @apply block !important; order: 2; }
     .nav-cta { @apply inline-flex px-3 py-[6px] text-[10.5px] order-1 !important; border: 1px solid rgba(255,255,255,0.1) !important; background: rgba(255,255,255,0.05) !important; box-shadow: none !important; }
+    
+    .hero-title { font-size: 42px; margin-bottom: 20px; }
+    .hero-sub { font-size: 13px; margin-bottom: 30px; }
+    .hero-logos { gap: 24px; }
+    .hero-logos span { font-size: 18px; }
+
+    #features { padding: 60px 24px; }
+    .feat-grid { gap: 60px; }
+    .feat-card { grid-template-columns: 1fr; gap: 40px; }
+    .feat-vis { order: -1; }
+
+    #difference { padding: 60px 24px; }
+    .diff-wrap { grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    #stats { padding: 60px 20px; }
+    .stats-row { grid-template-columns: 1fr 1fr; border-radius: 16px; }
+    .stat { padding: 30px 20px; }
+
+    #testi { padding: 60px 24px; }
+    .testi-row { grid-template-columns: 1fr; gap: 12px; }
+
+    #fcta { min-height: 50vh; }
+    .fcta-title { font-size: 38px; }
+
+    footer { padding: 40px 24px; justify-content: center; text-align: center; }
+}
+
+@media(max-width:640px) {
+    .diff-wrap { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: 1fr; }
+    .hero-actions { flex-direction: column; width: 100%; }
+    .hero-actions > * { width: 100%; justify-content: center; }
 }
 
 /* ── DASHBOARD REDESIGN ── */

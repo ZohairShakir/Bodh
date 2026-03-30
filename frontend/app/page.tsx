@@ -196,12 +196,81 @@ export default function LandingPage() {
                 </div>
             </section>
 
-            <footer className="mt-20">
+            <section id="stats">
+                <div className="stats-glow"></div>
+                <div className="stats-row r">
+                    <div className="stat">
+                        <div className="stat-n" data-t="12400" data-s="+">0</div>
+                        <div className="stat-l">TOPICS ANALYZED</div>
+                    </div>
+                    <div className="stat">
+                        <div className="stat-n" data-t="98" data-s="%" data-div="1">0</div>
+                        <div className="stat-l">ACCURACY RATE</div>
+                    </div>
+                    <div className="stat">
+                        <div className="stat-n" data-t="8" data-s="s">0</div>
+                        <div className="stat-l">AVG RESPONSE</div>
+                    </div>
+                    <div className="stat">
+                        <div className="stat-n" data-t="52" data-s="+">0</div>
+                        <div className="stat-l">COLLEGES ACTIVE</div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="testi">
+                <div className="feat-header">
+                    <div className="s-badge r">Testimonials</div>
+                    <h2 className="s-title r d1">Voices of Bodh</h2>
+                </div>
+                <div className="testi-row">
+                    <div className="tcard r">
+                        <div className="tcard-q">"Bodh saved my Fluid Mechanics exam. The summaries are so much easier to read than the 400-page textbook."</div>
+                        <div className="tcard-author">
+                            <div className="tcard-name">Aarav Mehta</div>
+                            <div className="tcard-role">Mechanical Engineering, BITS</div>
+                        </div>
+                    </div>
+                    <div className="tcard r d1">
+                        <div className="tcard-q">"The quiz generation is literal magic. I just paste my notes and I have a practice test ready for my internals."</div>
+                        <div className="tcard-author">
+                            <div className="tcard-name">Isha Sharma</div>
+                            <div className="tcard-role">Computer Science, MIT</div>
+                        </div>
+                    </div>
+                    <div className="tcard r d2">
+                        <div className="tcard-q">"Clean, fast, and no-BS. It gives me exactly what I need to study effectively without any of the fluff."</div>
+                        <div className="tcard-author">
+                            <div className="tcard-name">Rohan Gupta</div>
+                            <div className="tcard-role">Electrical Eng., IIT Delhi</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="fcta">
+                <video autoPlay muted loop playsInline>
+                    <source src="https://assets.mixkit.co/videos/preview/mixkit-forest-stream-in-the-sunlight-529-large.mp4" type="video/mp4" />
+                </video>
+                <div className="fcta-grad"></div>
+                <div className="fcta-inner">
+                    <h2 className="fcta-title r">Ready to reach clarity?</h2>
+                    <Link href="/auth?mode=signup" className="btn-outline r d1">
+                        Get Started For Free
+                        <svg width="10" height="10" viewBox="0 0 11 11" fill="none">
+                            <path d="M1 10L10 1M10 1H3M10 1V8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                    </Link>
+                </div>
+            </section>
+
+            <footer>
                 <p>© 2026 Bodh AI. All rights reserved.</p>
                 <div className="flinks">
-                    <a href="#">Privacy</a>
-                    <a href="#">Terms</a>
-                    <a href="https://github.com/">GitHub</a>
+                    <a href="#">Privacy Policy</a>
+                    <a href="#">Terms of Service</a>
+                    <a href="https://github.com/">Open Source</a>
+                    <a href="#">Contact</a>
                 </div>
             </footer>
         </div>

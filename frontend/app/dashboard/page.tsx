@@ -164,7 +164,7 @@ export default function DashboardPage() {
     // Fetch History
     useEffect(() => {
         if (isLoggedIn && userName) {
-            fetch(`http://localhost:5000/api/history/${userName}`)
+            fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/history/${userName}`)
                 .then(res => res.json())
                 .then(setHistory)
                 .catch(console.error);
@@ -212,7 +212,7 @@ export default function DashboardPage() {
         setChatError(null);
         setIsLoading(true);
         try {
-            const res = await fetch(`http://localhost:5000/api/packs/${chatJoinInput.toUpperCase()}`);
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/packs/${chatJoinInput.toUpperCase()}`);
             const data = await res.json();
             if (res.ok) {
                 setSummary(data.summary);
@@ -238,7 +238,7 @@ export default function DashboardPage() {
         }
         setChatError(null);
         try {
-            const res = await fetch(`http://localhost:5000/api/packs/share`, {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/packs/share`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ pack: { summary, quiz, key_terms: keyTerms }, userId: userName })
@@ -458,7 +458,7 @@ export default function DashboardPage() {
         if (!joinCode.trim()) return;
         setIsLoading(true);
         try {
-            const res = await fetch(`http://localhost:5000/api/packs/${joinCode.toUpperCase()}`);
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/packs/${joinCode.toUpperCase()}`);
             const data = await res.json();
             if (res.ok) {
                 setSummary(data.summary);
@@ -480,7 +480,7 @@ export default function DashboardPage() {
     const handleShare = async () => {
         if (!hasResults) return;
         try {
-            const res = await fetch(`http://localhost:5000/api/packs/share`, {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/packs/share`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ pack: { summary, quiz, key_terms: keyTerms }, userId: userName })

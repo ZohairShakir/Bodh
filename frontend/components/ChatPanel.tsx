@@ -23,7 +23,7 @@ export default function ChatPanel({ packId, currentUser }: ChatPanelProps) {
     useEffect(() => {
         const fetchMessages = async () => {
             try {
-                const res = await fetch(`http://localhost:5000/api/chat/${packId}`);
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/chat/${packId}`);
                 const data = await res.json();
                 setMessages(data);
             } catch (err) {
@@ -47,7 +47,7 @@ export default function ChatPanel({ packId, currentUser }: ChatPanelProps) {
         if (!newMessage.trim()) return;
 
         try {
-            const res = await fetch(`http://localhost:5000/api/chat`, {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/chat`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ packId, user: currentUser, message: newMessage })

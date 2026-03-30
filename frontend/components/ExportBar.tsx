@@ -68,7 +68,7 @@ export default function ExportBar({ onDownload, onCopyLink, isVisible }: ExportB
             </div>
 
             {/* Mobile FAB */}
-            <div className="sm:hidden fixed bottom-40 right-6 z-50 flex flex-col items-end gap-4 group">
+            <div className="sm:hidden fixed bottom-[176px] right-6 z-[105] flex flex-col items-end gap-4 group">
                 <div className={`flex flex-col items-end gap-4 transition-all duration-500 transform scale-0 origin-bottom group-hover:scale-100`}>
                      <button 
                         onClick={handleCopy}

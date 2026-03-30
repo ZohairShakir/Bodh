@@ -516,6 +516,7 @@ export default function DashboardPage() {
     const wordCount = text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
 
     return (
+        <>  
         <div className="dash-layout">
             {/* Sidebar */}
             <aside className="dash-sidebar">
@@ -1120,8 +1121,6 @@ export default function DashboardPage() {
                 </div>
             </main>
 
-            <ExportBar isVisible={hasResults} onDownload={handleDownload} onCopyLink={handleCopyLink} />
-
             {/* Global Chat Toast */}
             {chatToast && (
                 <div onClick={() => { setView('chat'); setChatToast(null); }} className="fixed top-8 left-1/2 -translate-x-1/2 z-[9999] cursor-pointer animate-in slide-in-from-top fade-in duration-500">
@@ -1138,35 +1137,7 @@ export default function DashboardPage() {
                 </div>
             )}
 
-            <BodhTutorPanel 
-                isOpen={isTutorOpen} 
-                onClose={() => setIsTutorOpen(false)} 
-                context={{
-                    summary,
-                    key_terms: keyTerms,
-                    weak_topics: weakTopics,
-                    entry_context: tutorEntryContext
-                }}
-                chatHistory={tutorChatHistory}
-                setChatHistory={setTutorChatHistory}
-                userName={displayName || userName || undefined}
-            />
 
-            {/* Floating Tutor Bubble */}
-            {!isTutorOpen && hasResults && (
-                <button 
-                    onClick={() => handleAskTutor({ type: 'open' })}
-                    className="fixed bottom-[96px] lg:bottom-12 right-6 lg:right-12 z-[90] glass-metal-icon w-16 h-16 sm:w-20 sm:h-20 hover:scale-110 active:scale-95 group transition-all duration-500"
-                    title="Ask Bodh AI Tutor"
-                >
-                    {/* Metallic glow effects */}
-                    <div className="absolute inset-0 bg-violet-600/10 blur-xl group-hover:bg-violet-600/20 transition-all duration-700" />
-                    <div className="relative z-10 flex items-center justify-center">
-                        <Bot size={32} className="text-white/80 group-hover:text-white transition-colors duration-500 group-hover:animate-bounce" />
-                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-[#0A0A0B] rounded-full shadow-[0_0_10px_#10b981]" />
-                    </div>
-                </button>
-            )}
 
             <ProductTour
                 active={showGuide}
@@ -1224,5 +1195,43 @@ export default function DashboardPage() {
                 ]}
             />
         </div>
+
+            {/* All fixed-positioned overlays are OUTSIDE .dash-layout to avoid
+                position:fixed being trapped by overflow-x:hidden / backdrop-filter
+                on the layout container. */}
+            <ExportBar isVisible={hasResults} onDownload={handleDownload} onCopyLink={handleCopyLink} />
+
+            {/* BodhTutorPanel + Floating Bubble */}
+            <BodhTutorPanel 
+                isOpen={isTutorOpen} 
+                onClose={() => setIsTutorOpen(false)} 
+                context={{
+                    summary,
+                    key_terms: keyTerms,
+                    weak_topics: weakTopics,
+                    entry_context: tutorEntryContext
+                }}
+                chatHistory={tutorChatHistory}
+                setChatHistory={setTutorChatHistory}
+                userName={displayName || userName || undefined}
+            />
+
+            {/* Floating Tutor Bubble — positioned relative to true viewport */}
+            {!isTutorOpen && hasResults && (
+                <button 
+                    onClick={() => handleAskTutor({ type: 'open' })}
+                    className="fixed bottom-[96px] lg:bottom-12 right-6 lg:right-12 z-[110] glass-metal-icon w-16 h-16 sm:w-20 sm:h-20 hover:scale-110 active:scale-95 group transition-all duration-500"
+                    title="Ask Bodh AI Tutor"
+                    style={{ position: 'fixed' }}
+                >
+                    {/* Metallic glow effects */}
+                    <div className="absolute inset-0 bg-violet-600/10 blur-xl group-hover:bg-violet-600/20 transition-all duration-700" />
+                    <div className="relative z-10 flex items-center justify-center">
+                        <Bot size={32} className="text-white/80 group-hover:text-white transition-colors duration-500 group-hover:animate-bounce" />
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-[#0A0A0B] rounded-full shadow-[0_0_10px_#10b981]" />
+                    </div>
+                </button>
+            )}
+        </>
     );
 }

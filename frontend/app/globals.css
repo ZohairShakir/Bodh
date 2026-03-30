@@ -35,11 +35,11 @@
 @layer base {
     html {
         scroll-behavior: smooth;
+        overflow-x: clip; /* prevents horizontal scroll without trapping position:fixed children */
     }
     body {
         @apply bg-background text-foreground antialiased;
         font-family: 'DM Sans', sans-serif;
-        overflow-x: hidden;
     }
     @media (pointer: fine) {
         body {
@@ -566,8 +566,9 @@ footer p, .flinks a { @apply text-white/25 text-[11.5px] no-underline cursor-non
 
 /* ── DASHBOARD REDESIGN ── */
 .dash-layout {
-  @apply flex flex-col lg:flex-row min-h-screen relative overflow-x-hidden p-0 gap-0 lg:gap-8;
+  @apply flex flex-col lg:flex-row min-h-screen relative p-0 gap-0 lg:gap-8;
   background: radial-gradient(circle at 0% 0%, #0a0a0c 0%, #050505 100%);
+  overflow: clip; /* 'clip' does NOT create a containing block for fixed elements, unlike 'hidden' */
 }
 
 .dash-layout::before {
@@ -706,4 +707,20 @@ footer p, .flinks a { @apply text-white/25 text-[11.5px] no-underline cursor-non
 @media(max-width: 1024px) {
   .dash-layout { @apply flex-col; }
   .dash-grid { @apply grid-cols-1; }
+}
+
+/* ── AI TUTOR FLOATING BUTTON ── */
+/* Dedicated class so position:fixed is never overridden by utility class order */
+.tutor-fab {
+  position: fixed !important;
+  bottom: 96px !important;
+  right: 24px !important;
+  z-index: 110 !important;
+}
+
+@media (min-width: 1024px) {
+  .tutor-fab {
+    bottom: 48px !important;
+    right: 48px !important;
+  }
 }

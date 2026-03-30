@@ -865,7 +865,7 @@ export default function DashboardPage() {
                             )}
 
                             {chatMode === 'active' && shareCode && (
-                                <ChatPanel packId={shareCode} currentUser={displayName || userName || 'Visitor'} />
+                                <ChatPanel packId={shareCode} currentUser={displayName || userName || 'Visitor'} summary={summary} keyTerms={keyTerms} />
                             )}
                         </div>
                     )}
@@ -1216,19 +1216,49 @@ export default function DashboardPage() {
                 userName={displayName || userName || undefined}
             />
 
-            {/* Floating Tutor Bubble — positioned relative to true viewport */}
+            {/* Floating Tutor Bubble — true viewport-fixed */}
             {!isTutorOpen && hasResults && (
                 <button 
                     onClick={() => handleAskTutor({ type: 'open' })}
-                    className="fixed bottom-[96px] lg:bottom-12 right-6 lg:right-12 z-[110] glass-metal-icon w-16 h-16 sm:w-20 sm:h-20 hover:scale-110 active:scale-95 group transition-all duration-500"
                     title="Ask Bodh AI Tutor"
-                    style={{ position: 'fixed' }}
+                    className="tutor-fab group"
+                    style={{
+                        position: 'fixed',
+                        bottom: '96px',
+                        right: '24px',
+                        zIndex: 110,
+                        width: '64px',
+                        height: '64px',
+                        borderRadius: '16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.2)',
+                        overflow: 'hidden',
+                        cursor: 'pointer',
+                        transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.1)')}
+                    onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
+                    onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.95)')}
+                    onMouseUp={e => (e.currentTarget.style.transform = 'scale(1.1)')}
                 >
-                    {/* Metallic glow effects */}
-                    <div className="absolute inset-0 bg-violet-600/10 blur-xl group-hover:bg-violet-600/20 transition-all duration-700" />
-                    <div className="relative z-10 flex items-center justify-center">
-                        <Bot size={32} className="text-white/80 group-hover:text-white transition-colors duration-500 group-hover:animate-bounce" />
-                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-[#0A0A0B] rounded-full shadow-[0_0_10px_#10b981]" />
+                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(139,92,246,0.1)', filter: 'blur(12px)', transition: 'background 0.5s' }} />
+                    <div style={{ position: 'relative', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Bot size={28} className="text-white/80" />
+                        <div style={{
+                            position: 'absolute',
+                            top: '-4px',
+                            right: '-4px',
+                            width: '14px',
+                            height: '14px',
+                            background: '#10b981',
+                            border: '2px solid #0A0A0B',
+                            borderRadius: '50%',
+                            boxShadow: '0 0 10px #10b981',
+                        }} />
                     </div>
                 </button>
             )}

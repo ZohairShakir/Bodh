@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
+    "@react-oauth/google": "^0.13.4",
     "clsx": "^2.1.1",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2",
@@ -23,10 +24,10 @@
     "tailwind-merge": "^2.5.2"
   },
   "devDependencies": {
+    "@types/lz-string": "^1.5.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "@types/lz-string": "^1.5.0",
     "autoprefixer": "^10.4.20",
     "eslint": "^8",
     "eslint-config-next": "14.2.15",

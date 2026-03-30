@@ -5,13 +5,14 @@ import { useAuth } from '@/context/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Shapes } from 'lucide-react';
+import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
 
 function AuthContent() {
     const { login, isLoggedIn } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
     
-    const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('signup');
+    const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [name, setName] = useState('');
@@ -19,6 +20,10 @@ function AuthContent() {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    // Social login state — tracks which provider was clicked and shows email/name collection step
+    const [socialProvider, setSocialProvider] = useState<string | null>(null);
+    const [socialEmail, setSocialEmail] = useState('');
+    const [socialName, setSocialName] = useState('');
 
     useEffect(() => {
         const modeParam = searchParams.get('mode');
@@ -76,37 +81,72 @@ function AuthContent() {
         }
     };
 
-    const handleSocialLogin = async (provider: string) => {
+    const handleSocialLogin = (provider: string) => {
+        // Fallback for non-Google providers
         setError('');
+        setSocialEmail(email);
+        setSocialName(name);
+        setSocialProvider(provider);
+    };
+
+    const googleLogin = useGoogleLogin({
+        onSuccess: async (tokenResponse) => {
+            setLoading(true);
+            setError('');
+            try {
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/generate', '') || "http://localhost:5000/api";
+                
+                const res = await fetch(`${apiUrl}/auth/social-login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        provider: 'google',
+                        credential: tokenResponse.access_token
+                    })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Google login failed');
+
+                login(data.token, data.name, data.userId);
+                router.push('/dashboard');
+            } catch (err: any) {
+                setError(err.message || 'Failed to authenticate with Google');
+            } finally {
+                setLoading(false);
+            }
+        },
+        onError: () => setError("Google login failed.")
+    });
+
+    const handleSocialSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!socialEmail.trim() || !socialName.trim()) {
+            setError('Please enter your name and email to continue.');
+            return;
+        }
         setLoading(true);
+        setError('');
         try {
-            // Simplified social login stub
-            // In a real app, this would redirect to OAuth or use an SDK
-            // The backend endpoint we added /api/auth/social-login handles linking/creating
-            console.log(`Logging in with ${provider}...`);
-            
-            // Simulation: let's pretend we got a provider ID
-            const providerId = `${provider}_test_${Date.now()}`;
             const apiUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/generate', '') || "http://localhost:5000/api";
-            
+            // Generate a stable provider ID from email + provider (not random)
+            const providerId = `${socialProvider}_${btoa(socialEmail.toLowerCase()).replace(/=/g, '')}`;
             const res = await fetch(`${apiUrl}/auth/social-login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    email: email || `user_${Date.now()}@example.com`, 
-                    name: name || 'Social User', 
-                    provider, 
-                    providerId 
+                    email: socialEmail.trim().toLowerCase(),
+                    name: socialName.trim(),
+                    provider: socialProvider,
+                    providerId
                 })
             });
-
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Social login failed');
-
             login(data.token, data.name, data.userId);
             router.push('/dashboard');
         } catch (err: any) {
-            setError(err.message || `Failed to log in with ${provider}`);
+            setError(err.message || `Failed to log in with ${socialProvider}`);
         } finally {
             setLoading(false);
         }
@@ -274,23 +314,60 @@ function AuthContent() {
                                         <hr style={{ flex: 1, border: 'none', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }} />
                                     </div>
 
-                                    <div className="social-logins" style={{ display: 'flex', gap: '12px' }}>
-                                        {['google', 'github', 'apple'].map(provider => (
+                                    {/* Social provider inline form */}
+                                    {socialProvider ? (
+                                        <form onSubmit={handleSocialSubmit} style={{ animation: 'fade-in 0.3s ease forwards' }}>
+                                            <div style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)' }} />
+                                                <span style={{ fontSize: '11px', color: 'var(--silver)', textTransform: 'capitalize' }}>Continuing with {socialProvider}</span>
+                                            </div>
+                                            <input
+                                                type="text"
+                                                placeholder="Your full name"
+                                                value={socialName}
+                                                onChange={e => setSocialName(e.target.value)}
+                                                required
+                                                style={{ width: '100%', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderBottom: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: 'var(--white)', outline: 'none', marginBottom: '10px', boxSizing: 'border-box' }}
+                                            />
+                                            <input
+                                                type="email"
+                                                placeholder="Your email address"
+                                                value={socialEmail}
+                                                onChange={e => setSocialEmail(e.target.value)}
+                                                required
+                                                style={{ width: '100%', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderBottom: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: 'var(--white)', outline: 'none', marginBottom: '12px', boxSizing: 'border-box' }}
+                                            />
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setSocialProvider(null); setError(''); }}
+                                                    style={{ flex: 1, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '10px', fontSize: '12px', color: 'var(--silver)', cursor: 'pointer' }}
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button
+                                                    type="submit"
+                                                    disabled={loading}
+                                                    style={{ flex: 2, background: 'var(--accent)', border: 'none', borderRadius: '8px', padding: '10px', fontSize: '12px', color: '#fff', fontWeight: 600, cursor: 'pointer', opacity: loading ? 0.7 : 1 }}
+                                                >
+                                                    {loading ? 'Connecting...' : `Continue with ${socialProvider}`}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    ) : (
+                                        <div className="social-logins" style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
                                             <button 
-                                                key={provider} 
                                                 type="button" 
-                                                onClick={() => handleSocialLogin(provider)}
+                                                onClick={() => googleLogin()}
                                                 className="btn-social" 
-                                                style={{ cursor: 'pointer', flex: 1, background: 'transparent', border: '1px solid rgba(255, 255, 255, 0.12)', borderRadius: '8px', padding: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }}
+                                                style={{ cursor: 'pointer', background: 'transparent', border: '1px solid rgba(255, 255, 255, 0.12)', borderRadius: '50%', aspectRatio: '1/1', padding: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s', width: '56px', height: '56px' }}
                                             >
-                                                <svg viewBox="0 0 24 24" style={{ width: '16px', height: '16px', fill: 'var(--white)' }}>
-                                                    {provider === 'google' && <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>}
-                                                    {provider === 'github' && <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.699-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.564 9.564 0 0112 6.844c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.161 22 16.418 22 12c0-5.523-4.477-10-10-10z" />}
-                                                    {provider === 'apple' && <path d="M16.345 13.929c-.015 3.091 2.527 4.06 2.551 4.07-.024.081-.397 1.365-1.298 2.684-.78 1.139-1.595 2.274-2.86 2.298-1.242.023-1.644-.73-3.072-.73-1.428 0-1.874.707-3.093.754-1.266.046-2.19-1.206-2.973-2.34-1.602-2.31-2.825-6.521-1.192-9.35 .807-1.393 2.254-2.277 3.82-2.298 1.22-.023 2.378.82 3.123.82.742 0 2.144-.99 3.593-.843  1.52.174 2.894.614 3.733 1.84 -3.122 1.873 -2.628 6.307 .668 7.095zM15.42 4.144c.677-.82 1.133-1.956 1.008-3.091-1.002.04-2.164.667-2.861 1.488-.553.649-1.097 1.802-.953 2.913 1.116.086 2.13-.589 2.806-1.31z" />}
+                                                <svg viewBox="0 0 24 24" style={{ width: '22px', height: '22px', fill: 'var(--white)' }}>
+                                                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                                                 </svg>
                                             </button>
-                                        ))}
-                                    </div>
+                                        </div>
+                                    )}
                                 </>
                             )}
 
@@ -332,7 +409,9 @@ export default function AuthPage() {
                 Loading Secure Vault...
             </div>
         }>
-            <AuthContent />
+            <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}>
+                <AuthContent />
+            </GoogleOAuthProvider>
         </Suspense>
     );
 }

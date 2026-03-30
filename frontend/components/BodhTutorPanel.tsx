@@ -30,6 +30,7 @@ export default function BodhTutorPanel({
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const autoTriggeredRef = useRef(false);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -37,20 +38,35 @@ export default function BodhTutorPanel({
     }
   }, [chatHistory, isLoading]);
 
-  const handleSend = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!input.trim() || isLoading) return;
+  // Auto-trigger when opened from a summary card "Ask Bodh" button
+  useEffect(() => {
+    if (
+      isOpen &&
+      chatHistory.length === 0 &&
+      context?.entry_context?.type === "topic_question" &&
+      !autoTriggeredRef.current
+    ) {
+      autoTriggeredRef.current = true;
+      const { topic, bullets } = context.entry_context;
+      const autoQuestion = `Please explain "${topic}" to me in simple terms. Here are the key points I have: ${bullets?.join("; ")}`;
+      sendMessage(autoQuestion);
+    }
+    // Reset the auto-trigger guard when panel closes
+    if (!isOpen) {
+      autoTriggeredRef.current = false;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
-    const studentMessage = input.trim();
-    setInput("");
-    const newHistory: Message[] = [...chatHistory, { role: "user", content: studentMessage }];
+  const sendMessage = async (messageText: string) => {
+    if (!messageText.trim() || isLoading) return;
+
+    const newHistory: Message[] = [...chatHistory, { role: "user", content: messageText }];
     setChatHistory(newHistory);
     setIsLoading(true);
-    
-    // Track if we've already added an assistant response for this request
+
     const responseHandled = { current: false };
 
-    // 6-second demo fallback logic
     timeoutRef.current = setTimeout(() => {
       if (!responseHandled.current) {
         responseHandled.current = true;
@@ -59,7 +75,7 @@ export default function BodhTutorPanel({
         setChatHistory(prev => [...prev, { role: "assistant", content: fallback }]);
         setIsLoading(false);
       }
-    }, 8000); // Increased to 8s to allow for OpenAI -> Gemini fallback time
+    }, 8000);
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
@@ -71,7 +87,7 @@ export default function BodhTutorPanel({
         body: JSON.stringify({
           context,
           chat_history: chatHistory,
-          student_message: studentMessage
+          student_message: messageText
         })
       });
 
@@ -79,14 +95,13 @@ export default function BodhTutorPanel({
 
       if (!res.ok) throw new Error("Tutor unavailable");
       const data = await res.json();
-      
+
       if (!responseHandled.current) {
-         responseHandled.current = true;
-         setChatHistory(prev => [...prev, { role: "assistant", content: data.reply }]);
+        responseHandled.current = true;
+        setChatHistory(prev => [...prev, { role: "assistant", content: data.reply }]);
       }
     } catch (err) {
       console.error("Tutor Error:", err);
-      // Fallback already handled by timeout or if immediate error:
       if (!responseHandled.current) {
         responseHandled.current = true;
         const type = context?.entry_context?.type || "open";
@@ -98,8 +113,17 @@ export default function BodhTutorPanel({
     }
   };
 
+  const handleSend = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!input.trim() || isLoading) return;
+    const msg = input.trim();
+    setInput("");
+    await sendMessage(msg);
+  };
+
   const clearChat = () => {
     setChatHistory([]);
+    autoTriggeredRef.current = false;
   };
 
   return (
@@ -128,7 +152,9 @@ export default function BodhTutorPanel({
               </h2>
               <p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest flex items-center gap-1.5">
                 <Sparkles size={10} className="text-indigo-500/60" />
-                Talk to Bodhik
+                {context?.entry_context?.type === 'topic_question' 
+                  ? `Explaining: ${context.entry_context.topic}`
+                  : 'Talk to Bodhik'}
               </p>
             </div>
           </div>
@@ -149,12 +175,22 @@ export default function BodhTutorPanel({
           </div>
         </div>
 
+        {/* Topic context banner */}
+        {context?.entry_context?.type === 'topic_question' && (
+          <div className="px-6 py-3 bg-indigo-500/5 border-b border-indigo-500/10 flex items-center gap-2">
+            <Sparkles size={12} className="text-indigo-400 flex-shrink-0" />
+            <p className="text-[11px] text-indigo-300/70 font-medium truncate">
+              Context loaded: <span className="text-indigo-300">{context.entry_context.topic}</span>
+            </p>
+          </div>
+        )}
+
         {/* Chat History */}
         <div 
           ref={scrollRef}
           className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar"
         >
-          {chatHistory.length === 0 ? (
+          {chatHistory.length === 0 && !isLoading ? (
             <div className="h-full flex flex-col items-center justify-center text-center opacity-20 px-8">
               <Bot size={64} className="mb-6" />
               <p className="font-playfair italic text-xl text-white mb-2">Hey {userName || 'Scholar'}, I'm Bodhik!</p>
@@ -167,7 +203,7 @@ export default function BodhTutorPanel({
                   <div className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center border ${msg.role === 'user' ? 'bg-white/5 border-white/10 text-stone-400' : 'bg-indigo-600/20 border-indigo-500/20 text-indigo-400'}`}>
                     {msg.role === 'user' ? <User size={14} /> : <Bot size={14} />}
                   </div>
-                  <div className={`p-4 rounded-2xl text-[14px] leading-relaxed ${msg.role === 'user' ? 'bg-white/5 text-white/90 border border-white/5 rounded-tr-none' : 'bg-white/[0.03] text-stone-300 border border-white/5 rounded-tl-none'}`}>
+                  <div className={`p-4 rounded-2xl text-[14px] leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'bg-white/5 text-white/90 border border-white/5 rounded-tr-none' : 'bg-white/[0.03] text-stone-300 border border-white/5 rounded-tl-none'}`}>
                     {msg.content}
                   </div>
                 </div>

@@ -8,6 +8,8 @@ import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
+import JSON5 from 'json5';
+import { OAuth2Client } from 'google-auth-library';
 
 // Models
 import User from './models/User';
@@ -131,12 +133,53 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
     }
 });
 
-// SOCIAL LOGIN ENDPOINT (Stubs for GitHub/Apple)
+// SOCIAL LOGIN ENDPOINT
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
 app.post('/api/auth/social-login', async (req: Request, res: Response) => {
     try {
-        const { email, name, provider, providerId } = req.body;
-        if (!email || !provider || !providerId) {
-            return res.status(400).json({ error: "Email, provider and providerId required." });
+        const { provider, credential, email: legacyEmail, name: legacyName, providerId: legacyProviderId } = req.body;
+        
+        if (!provider) return res.status(400).json({ error: "Provider is required." });
+
+        let email = legacyEmail;
+        let name = legacyName;
+        let providerId = legacyProviderId;
+
+        // Verify genuine Google tokens
+        if (provider === 'google') {
+            if (!credential) return res.status(400).json({ error: "Missing Google credential token." });
+            try {
+                // If it's a JWT (ID Token)
+                if (credential.split('.').length === 3) {
+                    const ticket = await client.verifyIdToken({
+                        idToken: credential,
+                        audience: process.env.GOOGLE_CLIENT_ID
+                    });
+                    const payload = ticket.getPayload();
+                    if (!payload || !payload.email) throw new Error("Invalid token payload");
+                    email = payload.email.toLowerCase();
+                    name = payload.name || 'Google User';
+                    providerId = payload.sub;
+                } else {
+                    // It's an Access Token from useGoogleLogin custom button
+                    const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                        headers: { Authorization: `Bearer ${credential}` }
+                    });
+                    if (!response.ok) throw new Error("Failed to fetch user info from Google");
+                    const payload = await response.json();
+                    if (!payload || !payload.email) throw new Error("Invalid access token payload");
+                    email = payload.email.toLowerCase();
+                    name = payload.name || 'Google User';
+                    providerId = payload.sub;
+                }
+            } catch (err: any) {
+                console.error("Google Auth Validation Error:", err);
+                return res.status(401).json({ error: "Invalid Google credential" });
+            }
+        } else {
+            // Keep fallback for Apple/GitHub until implemented
+            if (!email || !providerId) return res.status(400).json({ error: "Email and providerId required." });
         }
 
         let user = await User.findOne({ 
@@ -163,12 +206,14 @@ app.post('/api/auth/social-login', async (req: Request, res: Response) => {
             // Update provider ID if missing
             if (provider === 'github' && !user.githubId) user.githubId = providerId;
             if (provider === 'apple' && !user.appleId) user.appleId = providerId;
+            if (!user.name && name) user.name = name; // sync name if not set
             await user.save();
         }
 
         const token = jwt.sign({ id: user._id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
         res.json({ token, name: user.name, userId: user._id });
     } catch (err) {
+        console.error("Social login overall error:", err);
         res.status(500).json({ error: "Social login failed." });
     }
 });
@@ -243,6 +288,15 @@ app.post('/api/generate', async (req: Request, res: Response) => {
 
         const prompt = USER_TEMPLATE(text, difficulty, n_questions) + (language === "Hindi" ? "\nRespond in Hindi." : "");
 
+        const extractJSONString = (raw: string) => {
+            const firstBrace = raw.indexOf('{');
+            const lastBrace = raw.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace >= firstBrace) {
+                return raw.substring(firstBrace, lastBrace + 1);
+            }
+            return raw;
+        };
+
         const generateWithOpenAI = async (extraInstruction = "") => {
             const result = await openai.chat.completions.create({
                 model: "gpt-4o-mini",
@@ -252,7 +306,8 @@ app.post('/api/generate', async (req: Request, res: Response) => {
                 ],
                 response_format: { type: "json_object" }
             });
-            return JSON.parse(result.choices[0].message.content || "{}");
+            const content = extractJSONString(result.choices[0].message.content || "{}");
+            return JSON5.parse(content);
         };
 
         const generateWithGemini = async () => {
@@ -262,9 +317,8 @@ app.post('/api/generate', async (req: Request, res: Response) => {
             });
             const result = await model.generateContent(prompt);
             const textResponse = result.response.text();
-            const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
-            const cleanedJson = jsonMatch ? jsonMatch[0] : textResponse;
-            return JSON.parse(cleanedJson);
+            const cleanedJson = extractJSONString(textResponse);
+            return JSON5.parse(cleanedJson);
         };
 
         let responseJson;

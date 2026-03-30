@@ -12,7 +12,7 @@ import { StudyPackModel, ChatMessageModel, DuelResultModel, ArenaLobbyModel } fr
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 8080; // Standardizing port
+const port = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'bodh_secure_jwt_secret_2026';
 const MONGODB_URI = process.env.MONGODB_URI;
 

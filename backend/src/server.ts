@@ -6,66 +6,27 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
-import { findUserByEmail, addUser } from './userStore';
-import { StudyPackModel, ChatMessageModel, DuelResultModel, ArenaLobbyModel } from './models';
+
+// Models
+import User from './models/User';
+import StudyPack from './models/StudyPack';
+import ChatMessage from './models/ChatMessage';
+import DuelResult from './models/DuelResult';
+import ArenaSession from './models/ArenaSession';
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'bodh_secure_jwt_secret_2026';
-const MONGODB_URI = process.env.MONGODB_URI;
+const JWT_SECRET = process.env.JWT_SECRET || 'bodh_local_secret_2024';
 
-// EXPLICIT CORS CONFIGURATION
-const allowedOrigins = [
-  "https://bodhik.vercel.app",
-  "http://localhost:3000",
-  "http://localhost:5000"
-];
+// Database Connection
+mongoose.connect(process.env.MONGODB_URI || '')
+    .then(() => console.log('Connected to MongoDB'))
+    .catch(err => console.error('MongoDB connection error:', err));
 
-app.use(cors({
-  origin: allowedOrigins,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-  credentials: true
-}));
-
-// ADDED LOGGING MIDDLEWARE - Check Railway Logs!
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
-  next();
-});
-
-// Handles preflight requests globally
-app.options("*", cors());
-
+app.use(cors());
 app.use(express.json());
-
-// HEALTH CHECK ENDPOINT
-app.get('/', (req, res) => {
-    res.json({ 
-        status: "Bodh Backend is Live", 
-        database: mongoose.connection.readyState === 1 ? "Connected" : "Disconnected",
-        timestamp: new Date()
-    });
-});
-
-// DATABASE CONNECTION
-if (!MONGODB_URI) {
-    console.error("⚠️ WARNING: MONGODB_URI is missing. Persistent features will not work.");
-} else {
-    try {
-        const connectionUri = MONGODB_URI.includes('mongodb.net/') && !MONGODB_URI.includes('mongodb.net/bodh_db') 
-            ? MONGODB_URI.replace('mongodb.net/', 'mongodb.net/bodh_db')
-            : MONGODB_URI;
-
-        mongoose.connect(connectionUri)
-            .then(() => console.log("✅ Connected to MongoDB Cluster (Database: bodh_db)"))
-            .catch(err => console.error("❌ MongoDB Connection Error:", err));
-    } catch (err) {
-        console.error("❌ Fatal MongoDB Setup Error (Possibly URI format):", err);
-    }
-}
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "missing" });
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "missing");
@@ -121,23 +82,24 @@ ${text}
 ---
 `;
 
-// AUTH ENDPOINTS (Refactored for async MongoDB)
+// AUTH ENDPOINTS
 app.post('/api/auth/register', async (req: Request, res: Response) => {
     try {
         const { email, password, name } = req.body;
         if (!email || !password || password.length < 6) {
             return res.status(400).json({ error: "Email and 6+ char password required." });
         }
-        const existing = await findUserByEmail(email);
+        const existing = await User.findOne({ email: email.toLowerCase() });
         if (existing) {
             return res.status(400).json({ error: "Email already registered." });
         }
         const passwordHash = await bcrypt.hash(password, 10);
-        const newUser = await addUser({ id: '', email, passwordHash, name });
-        const token = jwt.sign({ id: newUser.id, email: newUser.email, name: newUser.name }, JWT_SECRET, { expiresIn: '7d' });
-        res.status(201).json({ token, name: newUser.name });
+        const newUser = new User({ email: email.toLowerCase(), passwordHash, name });
+        await newUser.save();
+
+        const token = jwt.sign({ id: newUser._id, email: newUser.email, name: newUser.name }, JWT_SECRET, { expiresIn: '7d' });
+        res.status(201).json({ token, name: newUser.name, userId: newUser._id });
     } catch (err) {
-        console.error("Reg Error:", err);
         res.status(500).json({ error: "Registration failed." });
     }
 });
@@ -145,12 +107,12 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
 app.post('/api/auth/login', async (req: Request, res: Response) => {
     try {
         const { email, password } = req.body;
-        const user = await findUserByEmail(email);
+        const user = await User.findOne({ email: email.toLowerCase() });
         if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
             return res.status(401).json({ error: "Invalid credentials." });
         }
-        const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
-        res.json({ token, name: user.name });
+        const token = jwt.sign({ id: user._id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
+        res.json({ token, name: user.name, userId: user._id });
     } catch (err) {
         res.status(500).json({ error: "Login failed." });
     }
@@ -166,9 +128,6 @@ app.post('/api/generate', async (req: Request, res: Response) => {
 
         const prompt = USER_TEMPLATE(text, difficulty, n_questions) + (language === "Hindi" ? "\nRespond in Hindi." : "");
 
-        let retryCount = 0;
-        let responseJson = null;
-
         const generateWithOpenAI = async (extraInstruction = "") => {
             const result = await openai.chat.completions.create({
                 model: "gpt-4o-mini",
@@ -182,61 +141,23 @@ app.post('/api/generate', async (req: Request, res: Response) => {
         };
 
         const generateWithGemini = async () => {
-            console.log("Attempting Gemini generation with model: gemini-2.5-flash");
-            // Standard usage for Gemini 1.5/2.x/3.x is passing systemInstruction separately
             const model = genAI.getGenerativeModel({
                 model: "gemini-2.5-flash",
                 systemInstruction: SYSTEM_PROMPT
             });
             const result = await model.generateContent(prompt);
             const textResponse = result.response.text();
-
-            // Extract JSON from potentially markdown-wrapped response
             const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
             const cleanedJson = jsonMatch ? jsonMatch[0] : textResponse;
-
-            try {
-                return JSON.parse(cleanedJson);
-            } catch (e) {
-                console.error("Gemini JSON Parse Error. Raw response:", textResponse);
-                throw new Error("Gemini returned invalid JSON");
-            }
+            return JSON.parse(cleanedJson);
         };
 
+        let responseJson;
         try {
             responseJson = await generateWithOpenAI();
         } catch (openaiError: any) {
-            console.error("OpenAI Error Details:", {
-                status: openaiError.status,
-                code: openaiError.code,
-                message: openaiError.message
-            });
-
-            // If Rate Limited (429) OR Internal Error (500) OR Service Unavailable (503) from OpenAI
-            if (openaiError.status === 429 || openaiError.status === 500 || openaiError.status === 503 || openaiError.code === "rate_limit_exceeded") {
-                console.log("Primary AI failed. Switching to backup model (Gemini)...");
-                try {
-                    responseJson = await generateWithGemini();
-                } catch (geminiError: any) {
-                    console.error("Gemini Backup Error:", geminiError.message);
-                    return res.status(503).json({
-                        error: "Both AI services failed. Check your API quotas and network connection.",
-                        details: {
-                            openai: openaiError.message,
-                            gemini: geminiError.message,
-                            advice: "Check if your API keys are valid and have sufficient credits."
-                        }
-                    });
-                }
-            } else if (openaiError instanceof SyntaxError && retryCount < 1) {
-                retryCount++;
-                responseJson = await generateWithOpenAI("\nReturn ONLY raw JSON, nothing else.");
-            } else {
-                return res.status(openaiError.status || 501).json({
-                    error: openaiError.message || "Failed to generate study pack.",
-                    details: "OpenAI rejected the request. Status: " + (openaiError.status || "Unknown")
-                });
-            }
+            console.error("Primary AI failed, switching to backup...");
+            responseJson = await generateWithGemini();
         }
 
         return res.json(responseJson);
@@ -250,20 +171,7 @@ app.post('/api/generate', async (req: Request, res: Response) => {
 app.post('/api/generate/question', async (req: Request, res: Response) => {
     try {
         const { text, existingQuestion, difficulty } = req.body;
-
-        if (!text || !existingQuestion) {
-            return res.status(400).json({ error: "Context text and existing question are required." });
-        }
-
-        const prompt = `
-            Context: ${text}
-            
-            Existing Question to replace: "${existingQuestion}"
-            Desired Difficulty: ${difficulty || 'Medium'}
-            
-            Task: Generate a NEW and DIFFERENT multiple choice question from the context above. 
-            Return ONLY a JSON object with: "question", "options" (4), "correct_index" (0-3), and "explanation".
-        `;
+        const prompt = `Context: ${text}\nExisting Question: "${existingQuestion}"\nDesired Difficulty: ${difficulty || 'Medium'}\nTask: Generate a NEW and DIFFERENT question. Return JSON only.`;
 
         const result = await openai.chat.completions.create({
             model: "gpt-4o-mini",
@@ -274,10 +182,8 @@ app.post('/api/generate/question', async (req: Request, res: Response) => {
             response_format: { type: "json_object" }
         });
 
-        const newQuestion = JSON.parse(result.choices[0].message.content || "{}");
-        res.json(newQuestion);
-    } catch (error: any) {
-        console.error("Regen Error:", error);
+        res.json(JSON.parse(result.choices[0].message.content || "{}"));
+    } catch (error) {
         res.status(500).json({ error: "Failed to regenerate question." });
     }
 });
@@ -285,106 +191,74 @@ app.post('/api/generate/question', async (req: Request, res: Response) => {
 app.post('/api/tutor', async (req: Request, res: Response) => {
     try {
         const { context, chat_history, student_message } = req.body;
-
         const messages: any[] = [
             { role: "system", content: TUTOR_SYSTEM_PROMPT },
             ...(chat_history || []),
-            {
-                role: "user",
-                content: JSON.stringify(context) + "\n\nStudent: " + student_message
-            }
+            { role: "user", content: JSON.stringify(context) + "\n\nStudent: " + student_message }
         ];
 
-        let reply = "";
-
-        try {
-            const result = await openai.chat.completions.create({
-                model: "gpt-4o-mini",
-                messages,
-                max_tokens: 300
-            });
-            reply = result.choices[0].message.content || "";
-        } catch (openaiError: any) {
-            console.error("Tutor OpenAI Error:", openaiError.message);
-            console.log("Tutor switching to backup Gemini...");
-            
-            try {
-                const model = genAI.getGenerativeModel({ 
-                    model: "gemini-2.5-flash",
-                    systemInstruction: TUTOR_SYSTEM_PROMPT
-                });
-                
-                // Gemini expectations: history + last message
-                const history = (chat_history || []).map((m: any) => ({
-                    role: m.role === "assistant" ? "model" : "user",
-                    parts: [{ text: m.content }]
-                }));
-
-                const chat = model.startChat({ history });
-                const result = await chat.sendMessage(JSON.stringify(context) + "\n\nStudent: " + student_message);
-                reply = result.response.text();
-            } catch (geminiError: any) {
-                console.error("Tutor Gemini Error:", geminiError.message);
-                return res.status(503).json({ error: "Tutor services temporarily unavailable." });
-            }
-        }
-
-        res.json({ reply });
-    } catch (error: any) {
-        console.error("Tutor General Error:", error);
+        const result = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages,
+            max_tokens: 300
+        });
+        res.json({ reply: result.choices[0].message.content || "" });
+    } catch (error) {
         res.status(500).json({ error: "Failed to connect to Bodh Tutor." });
     }
 });
+
 // PACK & SHARING ENDPOINTS
 app.post('/api/packs/share', async (req: Request, res: Response) => {
     try {
         const { pack, userId } = req.body;
         const code = Math.random().toString(36).substring(2, 8).toUpperCase();
         
-        await StudyPackModel.create({
+        const newPack = new StudyPack({
             code,
-            userId,
-            content: pack
+            summary: pack.summary,
+            quiz: pack.quiz,
+            keyTerms: pack.keyTerms
         });
+        await newPack.save();
+
+        if (userId) {
+            await User.findByIdAndUpdate(userId, { $addToSet: { history: code } });
+        }
 
         res.status(201).json({ code });
     } catch (err) {
-        console.error("Share error:", err);
         res.status(500).json({ error: "Sharing failed." });
     }
 });
 
 app.get('/api/packs/:code', async (req: Request, res: Response) => {
     try {
-        const pack = await StudyPackModel.findOne({ code: req.params.code });
+        const pack = await StudyPack.findOne({ code: req.params.code });
         if (!pack) return res.status(404).json({ error: "Pack not found." });
-        
-        const packObj = pack.toObject() as any;
-        res.json({ ...packObj.content, id: packObj.code, createdAt: packObj.createdAt });
+        res.json(pack);
     } catch (err) {
-        res.status(500).json({ error: "Failed to retrieve pack." });
+        res.status(500).json({ error: "Fetch failed." });
     }
 });
 
 app.get('/api/history/:userId', async (req: Request, res: Response) => {
     try {
-        const packs = await StudyPackModel.find({ userId: req.params.userId }).sort({ createdAt: -1 });
-        const history = packs.map(p => {
-            const pObj = p.toObject() as any;
-            return { ...pObj.content, id: pObj.code, createdAt: pObj.createdAt };
-        });
+        const user = await User.findById(req.params.userId);
+        if (!user) return res.json([]);
+        const history = await StudyPack.find({ code: { $in: user.history } }).sort({ createdAt: -1 });
         res.json(history);
     } catch (err) {
-        res.status(500).json({ error: "Failed to fetch history." });
+        res.status(500).json({ error: "History fetch failed." });
     }
 });
 
 app.delete('/api/history/:userId/:code', async (req: Request, res: Response) => {
     try {
-        await StudyPackModel.deleteOne({ userId: req.params.userId, code: req.params.code });
+        await User.findByIdAndUpdate(req.params.userId, { $pull: { history: req.params.code } });
         res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ error: "Failed to delete from history." });
+        res.status(500).json({ error: "Delete failed." });
     }
 });
 
@@ -392,19 +266,20 @@ app.delete('/api/history/:userId/:code', async (req: Request, res: Response) => 
 app.post('/api/chat', async (req: Request, res: Response) => {
     try {
         const { packId, user, message } = req.body;
-        const msg = await ChatMessageModel.create({ packId, user, message });
+        const msg = new ChatMessage({ packId, user, message });
+        await msg.save();
         res.status(201).json(msg);
     } catch (err) {
-        res.status(500).json({ error: "Failed to send message." });
+        res.status(500).json({ error: "Chat save failed." });
     }
 });
 
 app.get('/api/chat/:packId', async (req: Request, res: Response) => {
     try {
-        const messages = await ChatMessageModel.find({ packId: req.params.packId }).sort({ timestamp: 1 });
+        const messages = await ChatMessage.find({ packId: req.params.packId }).sort({ createdAt: 1 });
         res.json(messages);
     } catch (err) {
-        res.status(500).json({ error: "Failed to load chat." });
+        res.status(500).json({ error: "Chat fetch failed." });
     }
 });
 
@@ -413,19 +288,20 @@ app.post('/api/duel/:code/result', async (req: Request, res: Response) => {
     try {
         const { code } = req.params;
         const { user, score, total } = req.body;
-        const result = await DuelResultModel.create({ code, user, score, total });
+        const result = new DuelResult({ code, user, score, total });
+        await result.save();
         res.status(201).json(result);
     } catch (err) {
-        res.status(500).json({ error: "Failed to save duel result." });
+        res.status(500).json({ error: "Result save failed." });
     }
 });
 
 app.get('/api/duel/:code/results', async (req: Request, res: Response) => {
     try {
-        const results = await DuelResultModel.find({ code: req.params.code }).sort({ timestamp: -1 });
+        const results = await DuelResult.find({ code: req.params.code }).sort({ createdAt: -1 });
         res.json(results);
     } catch (err) {
-        res.status(500).json({ error: "Failed to load duel results." });
+        res.status(500).json({ error: "Results fetch failed." });
     }
 });
 
@@ -435,35 +311,18 @@ app.post('/api/arena/:code/join', async (req: Request, res: Response) => {
         const { code } = req.params;
         const { user } = req.body;
         
-        let arena = await ArenaLobbyModel.findOne({ code });
-        
+        let arena = await ArenaSession.findOne({ code });
         if (!arena) {
-            arena = await ArenaLobbyModel.create({
-                code,
-                participants: new Map([[user, {
-                    user,
-                    isReady: false,
-                    score: 0,
-                    hasAnswered: false,
-                    lastAnswerCorrect: null
-                }]])
-            });
-        } else {
-            if (!arena.participants.has(user)) {
-                arena.participants.set(user, {
-                    user,
-                    isReady: false,
-                    score: 0,
-                    hasAnswered: false,
-                    lastAnswerCorrect: null
-                });
-                await arena.save();
-            }
+            arena = new ArenaSession({ code, participants: {} });
         }
         
+        if (!arena.participants.has(user)) {
+            arena.participants.set(user, { user, isReady: false, score: 0, hasAnswered: false, lastAnswerCorrect: null });
+            await arena.save();
+        }
         res.json(arena);
     } catch (err) {
-        res.status(500).json({ error: "Failed to join arena." });
+        res.status(500).json({ error: "Lobby join failed." });
     }
 });
 
@@ -472,44 +331,35 @@ app.post('/api/arena/:code/ready', async (req: Request, res: Response) => {
         const { code } = req.params;
         const { user, isReady } = req.body;
         
-        const arena = await ArenaLobbyModel.findOne({ code });
-        if (!arena || !arena.participants.has(user)) return res.status(404).json({ error: "Arena or user not found" });
+        const arena = await ArenaSession.findOne({ code });
+        if (!arena) return res.status(404).json({ error: "Arena not found" });
         
         const p = arena.participants.get(user);
-        p.isReady = isReady;
-        arena.participants.set(user, p);
-
-        const participantList: any[] = Array.from(arena.participants.values());
-        const allReady = participantList.length > 0 && participantList.every(p => p.isReady);
+        if (p) p.isReady = isReady;
         
+        const allReady = arena.participants.size > 0 && Array.from(arena.participants.values()).every((p: any) => p.isReady);
         if (allReady) {
             arena.status = 'countdown';
-            await arena.save();
-            
             setTimeout(async () => {
-                const refreshed = await ArenaLobbyModel.findOne({ code });
-                if (refreshed) {
-                    refreshed.status = 'playing';
-                    await refreshed.save();
-                }
+                await ArenaSession.updateOne({ code }, { status: 'playing' });
             }, 3000);
         } else {
             arena.status = 'lobby';
-            await arena.save();
         }
         
+        await arena.save();
         res.json(arena);
     } catch (err) {
-        res.status(500).json({ error: "Update failed." });
+        res.status(500).json({ error: "Ready state change failed." });
     }
 });
 
 app.get('/api/arena/:code/status', async (req: Request, res: Response) => {
     try {
-        const arena = await ArenaLobbyModel.findOne({ code: req.params.code });
-        res.json(arena || null);
+        const arena = await ArenaSession.findOne({ code: req.params.code });
+        res.json(arena);
     } catch (err) {
-        res.status(500).json({ error: "Failed to get status." });
+        res.status(500).json({ error: "Status fetch failed." });
     }
 });
 
@@ -517,44 +367,34 @@ app.post('/api/arena/:code/answer', async (req: Request, res: Response) => {
     try {
         const { code } = req.params;
         const { user, isCorrect } = req.body;
-        
-        const arena = await ArenaLobbyModel.findOne({ code });
-        if (!arena || !arena.participants.has(user)) return res.status(404).json({ error: "Arena or user not found" });
+        const arena = await ArenaSession.findOne({ code });
+        if (!arena) return res.status(404).json({ error: "Arena not found" });
         
         const p = arena.participants.get(user);
-        const participantList: any[] = Array.from(arena.participants.values());
-        const anyoneElseAnswered = participantList.some(op => op.user !== user && op.hasAnswered);
+        const anyoneElseAnswered = Array.from(arena.participants.values()).some((op: any) => op.user !== user && op.hasAnswered);
         
-        if (!p.hasAnswered && !anyoneElseAnswered) {
+        if (p && !p.hasAnswered && !anyoneElseAnswered) {
             p.hasAnswered = true;
             p.lastAnswerCorrect = isCorrect;
             if (isCorrect) p.score += 1;
-            arena.participants.set(user, p);
+            
             await arena.save();
             
             setTimeout(async () => {
-                const refreshed = await ArenaLobbyModel.findOne({ code });
+                const refreshed = await ArenaSession.findOne({ code });
                 if (refreshed) {
-                    const latestParticipants: any[] = Array.from(refreshed.participants.values());
-                    latestParticipants.forEach(lp => {
-                        lp.hasAnswered = false;
-                        lp.lastAnswerCorrect = null;
-                        refreshed.participants.set(lp.user, lp);
+                    refreshed.participants.forEach((part: any) => {
+                        part.hasAnswered = false;
+                        part.lastAnswerCorrect = null;
                     });
-
-                    const pack = await StudyPackModel.findOne({ code });
-                    const packContent = pack ? (pack.toObject() as any).content : null;
-                    const totalQ = packContent?.quiz?.length || 0;
-                    
+                    const pack = await StudyPack.findOne({ code });
+                    const totalQ = pack?.quiz?.length || 0;
                     refreshed.currentQuestionIndex += 1;
-                    if (refreshed.currentQuestionIndex >= totalQ) {
-                        refreshed.status = 'finished';
-                    }
+                    if (refreshed.currentQuestionIndex >= totalQ) refreshed.status = 'finished';
                     await refreshed.save();
                 }
             }, 2500);
         }
-        
         res.json(arena);
     } catch (err) {
         res.status(500).json({ error: "Answer submission failed." });
@@ -563,5 +403,4 @@ app.post('/api/arena/:code/answer', async (req: Request, res: Response) => {
 
 app.listen(port, () => {
     console.log(`Bodh Backend listening at http://localhost:${port}`);
-    console.log(`Persistence Layer: MongoDB (${MONGODB_URI ? 'Cloud' : 'Missing!'})`);
 });

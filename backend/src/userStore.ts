@@ -14,7 +14,7 @@ export const findUserByEmail = async (email: string): Promise<User | null> => {
         id: user._id.toString(),
         email: user.email,
         passwordHash: user.passwordHash,
-        name: user.name
+        name: user.name ?? undefined
     };
 };
 
@@ -29,6 +29,6 @@ export const addUser = async (userData: User): Promise<User> => {
         id: saved._id.toString(),
         email: saved.email,
         passwordHash: saved.passwordHash,
-        name: saved.name
+        name: saved.name ?? undefined
     };
 };

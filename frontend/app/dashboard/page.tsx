@@ -345,7 +345,8 @@ export default function DashboardPage() {
         setQuiz([]);
         setKeyTerms([]);
         try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/generate";
+            const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+            const apiUrl = `${baseUrl.replace(/\/$/, '')}/generate`;
             const res = await fetch(apiUrl, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

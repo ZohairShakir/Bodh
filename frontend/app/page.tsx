@@ -155,7 +155,7 @@ export default function LandingPage() {
                         <div className="feat-text">
                             <h3>Summaries that actually make sense.</h3>
                             <p>Bodh reads your notes and organises them into clean topic-by-topic bullet summaries — the way a topper would write them, not a machine.</p>
-                            <a href="#" className="btn-outline">
+                            <a href="#hero" className="btn-outline">
                                 View Example
                             </a>
                         </div>
@@ -170,6 +170,25 @@ export default function LandingPage() {
                             </div>
                         </div>
                     </div>
+
+                    <div className="feat-card r feat-card-rev">
+                        <div className="feat-vis">
+                            <div className="cube">
+                                <svg viewBox="0 0 200 200" fill="none">
+                                    <path d="M60 140 L100 60 L140 140 Z" stroke="rgba(29, 158, 117, 0.4)" strokeWidth="0.8" />
+                                    <circle cx="100" cy="100" r="40" stroke="rgba(29, 158, 117, 0.1)" strokeWidth="0.5" />
+                                    <rect x="70" y="70" width="60" height="60" stroke="#1d9e75" strokeWidth="0.3" strokeDasharray="2 2" className="animate-pulse" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div className="feat-text">
+                            <h3>Test your edge with the Quiz Arena.</h3>
+                            <p>Turn any document into a competitive landscape. Challenge your batchmates to a real-time duel and see who mastered the material first.</p>
+                            <Link href="/auth?mode=signup" className="btn-outline">
+                                Start a Duel
+                            </Link>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -181,17 +200,31 @@ export default function LandingPage() {
                 <div className="diff-wrap">
                     <div className="diff-card r">
                         <div className="diff-icon-box">
-                            <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
                         </div>
                         <h4>Built for Indian Exams</h4>
                         <p>Optimized for subjects frequently taught in Indian engineering and degree colleges.</p>
                     </div>
                     <div className="diff-card r d1">
                         <div className="diff-icon-box">
-                            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
                         </div>
                         <h4>Privacy First</h4>
                         <p>We don't store your notes. Everything is cleaned after your session ends.</p>
+                    </div>
+                    <div className="diff-card r d2">
+                        <div className="diff-icon-box">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20M4 19.5V5A2.5 2.5 0 0 1 6.5 2.5H20" /></svg>
+                        </div>
+                        <h4>Smart Glossaries</h4>
+                        <p>Automatically extracts technical terms and definitions, building your exam vocabulary instantly.</p>
+                    </div>
+                    <div className="diff-card r d3">
+                        <div className="diff-icon-box">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.5 4 6.5 2 2 3 3.5 3 5.5a6.5 6.5 0 1 1-13 0z" /></svg>
+                        </div>
+                        <h4>Zero Friction</h4>
+                        <p>No login required to start. No bloated UI. Just clear, high-speed academic synthesis.</p>
                     </div>
                 </div>
             </section>

@@ -16,7 +16,19 @@ const port = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'bodh_secure_jwt_secret_2026';
 const MONGODB_URI = process.env.MONGODB_URI;
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    "https://bodhik.vercel.app",
+    "http://localhost:3000",
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+}));
+
+// Handles preflight requests
+app.options("*", cors());
+
 app.use(express.json());
 
 // DATABASE CONNECTION

@@ -1,7 +1,4 @@
-import fs from 'fs';
-import path from 'path';
-
-const USERS_FILE = path.join(process.cwd(), 'users.json');
+import { UserModel } from './models';
 
 export interface User {
     id: string;
@@ -10,35 +7,28 @@ export interface User {
     name?: string;
 }
 
-export const loadUsers = (): User[] => {
-    try {
-        if (!fs.existsSync(USERS_FILE)) {
-            fs.writeFileSync(USERS_FILE, JSON.stringify([], null, 2));
-            return [];
-        }
-        const data = fs.readFileSync(USERS_FILE, 'utf-8');
-        return JSON.parse(data);
-    } catch (error) {
-        console.error("Error loading users:", error);
-        return [];
-    }
+export const findUserByEmail = async (email: string): Promise<User | null> => {
+    const user = await UserModel.findOne({ email: email.toLowerCase() });
+    if (!user) return null;
+    return {
+        id: user._id.toString(),
+        email: user.email,
+        passwordHash: user.passwordHash,
+        name: user.name
+    };
 };
 
-export const saveUsers = (users: User[]) => {
-    try {
-        fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-    } catch (error) {
-        console.error("Error saving users:", error);
-    }
-};
-
-export const findUserByEmail = (email: string): User | undefined => {
-    const users = loadUsers();
-    return users.find(u => u.email.toLowerCase() === email.toLowerCase());
-};
-
-export const addUser = (user: User) => {
-    const users = loadUsers();
-    users.push(user);
-    saveUsers(users);
+export const addUser = async (userData: User): Promise<User> => {
+    const user = new UserModel({
+        email: userData.email.toLowerCase(),
+        passwordHash: userData.passwordHash,
+        name: userData.name
+    });
+    const saved = await user.save();
+    return {
+        id: saved._id.toString(),
+        email: saved.email,
+        passwordHash: saved.passwordHash,
+        name: saved.name
+    };
 };

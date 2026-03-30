@@ -5,42 +5,31 @@ import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { findUserByEmail, addUser, User } from './userStore';
+import mongoose from 'mongoose';
+import { findUserByEmail, addUser } from './userStore';
+import { StudyPackModel, ChatMessageModel, DuelResultModel, ArenaLobbyModel } from './models';
 
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'bodh_local_secret_2024';
+const port = process.env.PORT || 8080; // Standardizing port
+const JWT_SECRET = process.env.JWT_SECRET || 'bodh_secure_jwt_secret_2026';
+const MONGODB_URI = process.env.MONGODB_URI;
 
 app.use(cors());
 app.use(express.json());
 
+// DATABASE CONNECTION
+if (!MONGODB_URI) {
+    console.error("CRITICAL: MONGODB_URI is missing in .env");
+} else {
+    mongoose.connect(MONGODB_URI)
+        .then(() => console.log("✅ Connected to MongoDB Cluster"))
+        .catch(err => console.error("❌ MongoDB Connection Error:", err));
+}
+
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "missing" });
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "missing");
-
-// IN-MEMORY STORES (Replace with DB for production)
-const PACKS: Record<string, any> = {};
-const MESSAGES: Record<string, any[]> = {};
-const USER_HISTORY: Record<string, string[]> = {}; // userId -> packCodes[]
-const DUEL_RESULTS: Record<string, {user: string, score: number, total: number, timestamp: Date}[]> = {};
-
-interface ArenaParticipant {
-    user: string;
-    isReady: boolean;
-    score: number;
-    hasAnswered: boolean;
-    lastAnswerCorrect: boolean | null;
-}
-
-interface ArenaState {
-    code: string;
-    participants: Record<string, ArenaParticipant>;
-    status: 'lobby' | 'countdown' | 'playing' | 'finished';
-    currentQuestionIndex: number;
-}
-
-const ARENA_LOBBIES: Record<string, ArenaState> = {};
 
 const SYSTEM_PROMPT = `
 You are Bodhik, an expert study assistant for Indian college students.
@@ -93,22 +82,23 @@ ${text}
 ---
 `;
 
-// AUTH ENDPOINTS
+// AUTH ENDPOINTS (Refactored for async MongoDB)
 app.post('/api/auth/register', async (req: Request, res: Response) => {
     try {
         const { email, password, name } = req.body;
         if (!email || !password || password.length < 6) {
             return res.status(400).json({ error: "Email and 6+ char password required." });
         }
-        if (findUserByEmail(email)) {
+        const existing = await findUserByEmail(email);
+        if (existing) {
             return res.status(400).json({ error: "Email already registered." });
         }
         const passwordHash = await bcrypt.hash(password, 10);
-        const newUser: User = { id: Date.now().toString(), email, passwordHash, name };
-        addUser(newUser);
+        const newUser = await addUser({ id: '', email, passwordHash, name });
         const token = jwt.sign({ id: newUser.id, email: newUser.email, name: newUser.name }, JWT_SECRET, { expiresIn: '7d' });
         res.status(201).json({ token, name: newUser.name });
     } catch (err) {
+        console.error("Reg Error:", err);
         res.status(500).json({ error: "Registration failed." });
     }
 });
@@ -116,7 +106,7 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
 app.post('/api/auth/login', async (req: Request, res: Response) => {
     try {
         const { email, password } = req.body;
-        const user = findUserByEmail(email);
+        const user = await findUserByEmail(email);
         if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
             return res.status(401).json({ error: "Invalid credentials." });
         }
@@ -311,166 +301,223 @@ app.post('/api/packs/share', async (req: Request, res: Response) => {
     try {
         const { pack, userId } = req.body;
         const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-        PACKS[code] = { ...pack, id: code, createdAt: new Date() };
-
-        if (userId) {
-            if (!USER_HISTORY[userId]) USER_HISTORY[userId] = [];
-            USER_HISTORY[userId].push(code);
-        }
+        
+        await StudyPackModel.create({
+            code,
+            userId,
+            content: pack
+        });
 
         res.status(201).json({ code });
     } catch (err) {
+        console.error("Share error:", err);
         res.status(500).json({ error: "Sharing failed." });
     }
 });
 
-app.get('/api/packs/:code', (req: Request, res: Response) => {
-    const pack = PACKS[req.params.code];
-    if (!pack) return res.status(404).json({ error: "Pack not found." });
-    res.json(pack);
-});
-
-app.get('/api/history/:userId', (req: Request, res: Response) => {
-    const codes = USER_HISTORY[req.params.userId] || [];
-    const history = codes.map(code => PACKS[code]).filter(Boolean);
-    res.json(history);
-});
-
-app.delete('/api/history/:userId/:code', (req: Request, res: Response) => {
-    const { userId, code } = req.params;
-    if (USER_HISTORY[userId]) {
-        USER_HISTORY[userId] = USER_HISTORY[userId].filter(c => c !== code);
+app.get('/api/packs/:code', async (req: Request, res: Response) => {
+    try {
+        const pack = await StudyPackModel.findOne({ code: req.params.code });
+        if (!pack) return res.status(404).json({ error: "Pack not found." });
+        // Map back to expected format
+        res.json({ ...pack.content, id: pack.code, createdAt: (pack as any).createdAt });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to retrieve pack." });
     }
-    res.json({ success: true });
+});
+
+app.get('/api/history/:userId', async (req: Request, res: Response) => {
+    try {
+        const packs = await StudyPackModel.find({ userId: req.params.userId }).sort({ createdAt: -1 });
+        const history = packs.map(p => ({ ...p.content, id: p.code, createdAt: (p as any).createdAt }));
+        res.json(history);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to fetch history." });
+    }
+});
+
+app.delete('/api/history/:userId/:code', async (req: Request, res: Response) => {
+    try {
+        await StudyPackModel.deleteOne({ userId: req.params.userId, code: req.params.code });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to delete from history." });
+    }
 });
 
 // CHAT ENDPOINTS
-app.post('/api/chat', (req: Request, res: Response) => {
-    const { packId, user, message } = req.body;
-    if (!MESSAGES[packId]) MESSAGES[packId] = [];
-    const msg = { user, message, timestamp: new Date() };
-    MESSAGES[packId].push(msg);
-    res.status(201).json(msg);
+app.post('/api/chat', async (req: Request, res: Response) => {
+    try {
+        const { packId, user, message } = req.body;
+        const msg = await ChatMessageModel.create({ packId, user, message });
+        res.status(201).json(msg);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to send message." });
+    }
 });
 
-app.get('/api/chat/:packId', (req: Request, res: Response) => {
-    res.json(MESSAGES[req.params.packId] || []);
+app.get('/api/chat/:packId', async (req: Request, res: Response) => {
+    try {
+        const messages = await ChatMessageModel.find({ packId: req.params.packId }).sort({ timestamp: 1 });
+        res.json(messages);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to load chat." });
+    }
 });
 
 // DUEL ENDPOINTS
-app.post('/api/duel/:code/result', (req: Request, res: Response) => {
-    const { code } = req.params;
-    const { user, score, total } = req.body;
-    if (!DUEL_RESULTS[code]) DUEL_RESULTS[code] = [];
-    
-    const result = { user, score, total, timestamp: new Date() };
-    DUEL_RESULTS[code].push(result);
-    res.status(201).json(result);
+app.post('/api/duel/:code/result', async (req: Request, res: Response) => {
+    try {
+        const { code } = req.params;
+        const { user, score, total } = req.body;
+        const result = await DuelResultModel.create({ code, user, score, total });
+        res.status(201).json(result);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to save duel result." });
+    }
 });
 
-app.get('/api/duel/:code/results', (req: Request, res: Response) => {
-    const { code } = req.params;
-    res.json(DUEL_RESULTS[code] || []);
+app.get('/api/duel/:code/results', async (req: Request, res: Response) => {
+    try {
+        const results = await DuelResultModel.find({ code: req.params.code }).sort({ timestamp: -1 });
+        res.json(results);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to load duel results." });
+    }
 });
 
 // ARENA LOBBY ENDPOINTS
-app.post('/api/arena/:code/join', (req: Request, res: Response) => {
-    const { code } = req.params;
-    const { user } = req.body;
-    
-    if (!ARENA_LOBBIES[code]) {
-        ARENA_LOBBIES[code] = {
-            code,
-            participants: {},
-            status: 'lobby',
-            currentQuestionIndex: 0
-        };
-    }
-    
-    const arena = ARENA_LOBBIES[code];
-    if (!arena.participants[user]) {
-        arena.participants[user] = {
-            user,
-            isReady: false,
-            score: 0,
-            hasAnswered: false,
-            lastAnswerCorrect: null
-        };
-    }
-    
-    res.json(arena);
-});
-
-app.post('/api/arena/:code/ready', (req: Request, res: Response) => {
-    const { code } = req.params;
-    const { user, isReady } = req.body;
-    
-    const arena = ARENA_LOBBIES[code];
-    if (!arena || !arena.participants[user]) return res.status(404).json({ error: "Arena or user not found" });
-    
-    arena.participants[user].isReady = isReady;
-
-    const allReady = Object.values(arena.participants).length > 0 && Object.values(arena.participants).every(p => p.isReady);
-    if (allReady) {
-        // Starts countdown for clients
-        arena.status = 'countdown';
-        setTimeout(() => {
-            if (ARENA_LOBBIES[code]) ARENA_LOBBIES[code].status = 'playing';
-        }, 3000); // 3 seconds countdown
-    } else {
-        arena.status = 'lobby';
-    }
-    
-    res.json(arena);
-});
-
-app.get('/api/arena/:code/status', (req: Request, res: Response) => {
-    const { code } = req.params;
-    res.json(ARENA_LOBBIES[code] || null);
-});
-
-app.post('/api/arena/:code/answer', (req: Request, res: Response) => {
-    const { code } = req.params;
-    const { user, isCorrect } = req.body;
-    
-    const arena = ARENA_LOBBIES[code];
-    if (!arena || !arena.participants[user]) return res.status(404).json({ error: "Arena or user not found" });
-    
-    const p = arena.participants[user];
-    
-    // First person to answer this question gets the try
-    const anyoneElseAnswered = Object.values(arena.participants).some(op => op.user !== user && op.hasAnswered);
-    
-    if (!p.hasAnswered && !anyoneElseAnswered) {
-        p.hasAnswered = true;
-        p.lastAnswerCorrect = isCorrect;
-        if (isCorrect) {
-            p.score += 1;
+app.post('/api/arena/:code/join', async (req: Request, res: Response) => {
+    try {
+        const { code } = req.params;
+        const { user } = req.body;
+        
+        let arena = await ArenaLobbyModel.findOne({ code });
+        
+        if (!arena) {
+            arena = await ArenaLobbyModel.create({
+                code,
+                participants: new Map([[user, {
+                    user,
+                    isReady: false,
+                    score: 0,
+                    hasAnswered: false,
+                    lastAnswerCorrect: null
+                }]])
+            });
+        } else {
+            if (!arena.participants.has(user)) {
+                arena.participants.set(user, {
+                    user,
+                    isReady: false,
+                    score: 0,
+                    hasAnswered: false,
+                    lastAnswerCorrect: null
+                });
+                await arena.save();
+            }
         }
         
-        // Wait 2 seconds so the other person sees who answered, then move to next
-        setTimeout(() => {
-            const currentArena = ARENA_LOBBIES[code];
-            if (currentArena) {
-                // Reset hasAnswered for the next question
-                Object.values(currentArena.participants).forEach(participant => {
-                    participant.hasAnswered = false;
-                    participant.lastAnswerCorrect = null;
-                });
-                // Find total questions length
-                const pack = PACKS[code];
-                const totalQ = pack && pack.quiz ? pack.quiz.length : 0;
-                
-                currentArena.currentQuestionIndex += 1;
-                if (currentArena.currentQuestionIndex >= totalQ) {
-                    currentArena.status = 'finished';
-                }
-            }
-        }, 2500);
+        res.json(arena);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to join arena." });
     }
-    
-    res.json(arena);
 });
+
+app.post('/api/arena/:code/ready', async (req: Request, res: Response) => {
+    try {
+        const { code } = req.params;
+        const { user, isReady } = req.body;
+        
+        const arena = await ArenaLobbyModel.findOne({ code });
+        if (!arena || !arena.participants.has(user)) return res.status(404).json({ error: "Arena or user not found" });
+        
+        const p = arena.participants.get(user);
+        p.isReady = isReady;
+        arena.participants.set(user, p);
+
+        const participantList: any[] = Array.from(arena.participants.values());
+        const allReady = participantList.length > 0 && participantList.every(p => p.isReady);
+        
+        if (allReady) {
+            arena.status = 'countdown';
+            await arena.save();
+            
+            setTimeout(async () => {
+                const refreshed = await ArenaLobbyModel.findOne({ code });
+                if (refreshed) {
+                    refreshed.status = 'playing';
+                    await refreshed.save();
+                }
+            }, 3000);
+        } else {
+            arena.status = 'lobby';
+            await arena.save();
+        }
+        
+        res.json(arena);
+    } catch (err) {
+        res.status(500).json({ error: "Update failed." });
+    }
+});
+
+app.get('/api/arena/:code/status', async (req: Request, res: Response) => {
+    try {
+        const arena = await ArenaLobbyModel.findOne({ code: req.params.code });
+        res.json(arena || null);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to get status." });
+    }
+});
+
+app.post('/api/arena/:code/answer', async (req: Request, res: Response) => {
+    try {
+        const { code } = req.params;
+        const { user, isCorrect } = req.body;
+        
+        const arena = await ArenaLobbyModel.findOne({ code });
+        if (!arena || !arena.participants.has(user)) return res.status(404).json({ error: "Arena or user not found" });
+        
+        const p = arena.participants.get(user);
+        const participantList: any[] = Array.from(arena.participants.values());
+        const anyoneElseAnswered = participantList.some(op => op.user !== user && op.hasAnswered);
+        
+        if (!p.hasAnswered && !anyoneElseAnswered) {
+            p.hasAnswered = true;
+            p.lastAnswerCorrect = isCorrect;
+            if (isCorrect) p.score += 1;
+            arena.participants.set(user, p);
+            await arena.save();
+            
+            setTimeout(async () => {
+                const refreshed = await ArenaLobbyModel.findOne({ code });
+                if (refreshed) {
+                    const latestParticipants: any[] = Array.from(refreshed.participants.values());
+                    latestParticipants.forEach(lp => {
+                        lp.hasAnswered = false;
+                        lp.lastAnswerCorrect = null;
+                        refreshed.participants.set(lp.user, lp);
+                    });
+
+                    const pack = await StudyPackModel.findOne({ code });
+                    const totalQ = pack && pack.content.quiz ? pack.content.quiz.length : 0;
+                    
+                    refreshed.currentQuestionIndex += 1;
+                    if (refreshed.currentQuestionIndex >= totalQ) {
+                        refreshed.status = 'finished';
+                    }
+                    await refreshed.save();
+                }
+            }, 2500);
+        }
+        
+        res.json(arena);
+    } catch (err) {
+        res.status(500).json({ error: "Answer submission failed." });
+    }
+});
+
 app.listen(port, () => {
     console.log(`Bodh Backend listening at http://localhost:${port}`);
+    console.log(`Persistence Layer: MongoDB (${MONGODB_URI ? 'Cloud' : 'Missing!'})`);
 });

@@ -515,14 +515,21 @@ app.post('/api/arena/:code/ready', async (req: Request, res: Response) => {
         if (!arena) return res.status(404).json({ error: "Arena not found" });
         
         const p = arena.participants.get(user);
-        if (p) p.isReady = isReady;
+        if (p) {
+            p.isReady = isReady;
+            arena.markModified('participants');
+        }
         
-        const allReady = arena.participants.size > 0 && Array.from(arena.participants.values()).every((p: any) => p.isReady);
+        const allReady = arena.participants.size >= 2 && Array.from(arena.participants.values()).every((p: any) => p.isReady);
         if (allReady) {
             arena.status = 'countdown';
+            // Save before starting timeout to ensure status is 'countdown'
+            await arena.save();
+            
             setTimeout(async () => {
                 await ArenaSession.updateOne({ code }, { status: 'playing' });
             }, 3000);
+            return res.json(arena);
         } else {
             arena.status = 'lobby';
         }
@@ -558,6 +565,7 @@ app.post('/api/arena/:code/answer', async (req: Request, res: Response) => {
             p.lastAnswerCorrect = isCorrect;
             if (isCorrect) p.score += 1;
             
+            arena.markModified('participants');
             await arena.save();
             
             setTimeout(async () => {
@@ -567,6 +575,7 @@ app.post('/api/arena/:code/answer', async (req: Request, res: Response) => {
                         part.hasAnswered = false;
                         part.lastAnswerCorrect = null;
                     });
+                    refreshed.markModified('participants');
                     const pack = await StudyPack.findOne({ code });
                     const totalQ = pack?.quiz?.length || 0;
                     refreshed.currentQuestionIndex += 1;

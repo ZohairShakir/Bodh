@@ -486,12 +486,12 @@ app.get('/api/duel/:code/results', async (req: Request, res: Response) => {
 app.post('/api/arena/:code/join', async (req: Request, res: Response) => {
     try {
         const { code } = req.params;
-        const { user } = req.body;
+        const { user, mode } = req.body;
         
         // Find by code, but ensure we don't crash on invalid codes
         let arena = await ArenaSession.findOne({ code });
         if (!arena) {
-            arena = new ArenaSession({ code, participants: new Map() });
+            arena = new ArenaSession({ code, participants: new Map(), mode: mode || 'duel' });
         }
         
         if (!arena.participants || !arena.participants.has(user)) {
@@ -520,7 +520,8 @@ app.post('/api/arena/:code/ready', async (req: Request, res: Response) => {
             arena.markModified('participants');
         }
         
-        const allReady = arena.participants.size >= 2 && Array.from(arena.participants.values()).every((p: any) => p.isReady);
+        const minPlayers = arena.mode === 'fourway' ? 4 : 2;
+        const allReady = arena.participants.size >= minPlayers && Array.from(arena.participants.values()).every((p: any) => p.isReady);
         if (allReady) {
             arena.status = 'countdown';
             // Save before starting timeout to ensure status is 'countdown'
@@ -558,31 +559,37 @@ app.post('/api/arena/:code/answer', async (req: Request, res: Response) => {
         if (!arena) return res.status(404).json({ error: "Arena not found" });
         
         const p = arena.participants.get(user);
-        const anyoneElseAnswered = Array.from(arena.participants.values()).some((op: any) => op.user !== user && op.hasAnswered);
         
-        if (p && !p.hasAnswered && !anyoneElseAnswered) {
+        // Only record if this player hasn't answered yet
+        if (p && !p.hasAnswered) {
             p.hasAnswered = true;
             p.lastAnswerCorrect = isCorrect;
             if (isCorrect) p.score += 1;
-            
             arena.markModified('participants');
             await arena.save();
             
-            setTimeout(async () => {
-                const refreshed = await ArenaSession.findOne({ code });
-                if (refreshed) {
-                    refreshed.participants.forEach((part: any) => {
-                        part.hasAnswered = false;
-                        part.lastAnswerCorrect = null;
-                    });
-                    refreshed.markModified('participants');
-                    const pack = await StudyPack.findOne({ code });
-                    const totalQ = pack?.quiz?.length || 0;
-                    refreshed.currentQuestionIndex += 1;
-                    if (refreshed.currentQuestionIndex >= totalQ) refreshed.status = 'finished';
-                    await refreshed.save();
-                }
-            }, 2500);
+            const allParticipants = Array.from(arena.participants.values()) as any[];
+            const someoneGotItRight = isCorrect; // this player just got it right
+            const everyoneAnswered = allParticipants.every((part: any) => part.hasAnswered);
+            
+            // Advance to next question if: correct answer OR all players have now answered (all wrong)
+            if (someoneGotItRight || everyoneAnswered) {
+                setTimeout(async () => {
+                    const refreshed = await ArenaSession.findOne({ code });
+                    if (refreshed) {
+                        refreshed.participants.forEach((part: any) => {
+                            part.hasAnswered = false;
+                            part.lastAnswerCorrect = null;
+                        });
+                        refreshed.markModified('participants');
+                        const pack = await StudyPack.findOne({ code });
+                        const totalQ = pack?.quiz?.length || 0;
+                        refreshed.currentQuestionIndex += 1;
+                        if (refreshed.currentQuestionIndex >= totalQ) refreshed.status = 'finished';
+                        await refreshed.save();
+                    }
+                }, 2500);
+            }
         }
         res.json(arena);
     } catch (err) {

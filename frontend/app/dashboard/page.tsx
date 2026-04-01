@@ -267,7 +267,7 @@ export default function DashboardPage() {
         }
     };
 
-    const handleArenaCreateOrJoin = async (action: 'create' | 'join', codeToJoin?: string) => {
+    const handleArenaCreateOrJoin = async (action: 'create' | 'join', codeToJoin?: string, mode: 'duel' | 'fourway' = 'duel') => {
         setIsLoading(true);
         setChatError(null);
         try {
@@ -301,7 +301,7 @@ export default function DashboardPage() {
             const arenaRes = await fetch(`${cleanUrl}/api/arena/${currentCode}/join`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user: displayName || userName || "Anonymous" })
+                body: JSON.stringify({ user: displayName || userName || "Anonymous", mode })
             });
             const arenaData = await arenaRes.json();
             
@@ -666,37 +666,59 @@ export default function DashboardPage() {
                             </div>
 
                             {!arenaState ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-                                    {/* Create Duel Card */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+                                    {/* Create 1v1 Duel Card */}
                                     <button
-                                        onClick={() => handleArenaCreateOrJoin('create')}
+                                        onClick={() => handleArenaCreateOrJoin('create', undefined, 'duel')}
                                         disabled={isLoading || !hasResults}
-                                        className="dash-card group text-left hover:border-violet-500/30 transition-all cursor-pointer bg-white/[0.02] flex flex-col gap-6 p-8 sm:p-10"
+                                        className="dash-card group text-left hover:border-violet-500/30 transition-all cursor-pointer bg-white/[0.02] flex flex-col gap-6 p-8"
                                     >
-                                        <div className="w-16 h-16 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 group-hover:bg-violet-500/20 transition-all group-hover:scale-110 duration-500 shadow-xl shadow-violet-500/5">
-                                            <Trophy size={28} />
+                                        <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 group-hover:bg-violet-500/20 transition-all group-hover:scale-110 duration-500 shadow-xl shadow-violet-500/5">
+                                            <Trophy size={24} />
                                         </div>
                                         <div>
-                                            <h3 className="text-white/90 font-semibold text-xl mb-2 group-hover:text-white transition-colors">Initiate 1v1 Duel</h3>
+                                            <h3 className="text-white/90 font-semibold text-lg mb-1.5 group-hover:text-white transition-colors">1v1 Duel</h3>
                                             <p className="text-stone-500 text-sm leading-relaxed">
                                                 {hasResults 
-                                                    ? 'Create a competitive arena from your current study pack and challenge a friend.' 
+                                                    ? 'Challenge a friend head-to-head from your current study pack.' 
                                                     : 'Generate a study pack first to start a duel.'}
                                             </p>
                                         </div>
                                         <div className="mt-auto flex items-center gap-2 text-violet-400 font-bold text-[10px] uppercase tracking-[0.2em] group-hover:translate-x-1 transition-all">
-                                            {hasResults ? 'Start Arena' : 'Build Pack First'} <ChevronRight size={12} />
+                                            {hasResults ? 'Start Duel' : 'Build Pack First'} <ChevronRight size={12} />
                                         </div>
                                     </button>
 
-                                    {/* Join Duel Card */}
-                                    <div className="dash-card bg-white/[0.02] border-teal-500/10 flex flex-col gap-6 p-8 sm:p-10">
-                                        <div className="w-16 h-16 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 shadow-xl shadow-teal-500/5">
-                                            <Users size={28} />
+                                    {/* Create 4-Way Clash Card */}
+                                    <button
+                                        onClick={() => handleArenaCreateOrJoin('create', undefined, 'fourway')}
+                                        disabled={isLoading || !hasResults}
+                                        className="dash-card group text-left hover:border-orange-500/30 transition-all cursor-pointer bg-white/[0.02] border-orange-500/10 flex flex-col gap-6 p-8"
+                                    >
+                                        <div className="w-14 h-14 rounded-2xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400 group-hover:bg-orange-500/20 transition-all group-hover:scale-110 duration-500 shadow-xl shadow-orange-500/5">
+                                            <Users size={24} />
                                         </div>
                                         <div>
-                                            <h3 className="text-white/90 font-semibold text-xl mb-2">Enter Arena</h3>
-                                            <p className="text-stone-500 text-sm leading-relaxed">Have a duel code? Enter it below to join the challenge and see where you rank on the leaderboard.</p>
+                                            <h3 className="text-white/90 font-semibold text-lg mb-1.5 group-hover:text-white transition-colors">4-Way Clash</h3>
+                                            <p className="text-stone-500 text-sm leading-relaxed">
+                                                {hasResults
+                                                    ? 'Host a four-player battle royale. Invite three friends to compete simultaneously.'
+                                                    : 'Generate a study pack first to start a clash.'}
+                                            </p>
+                                        </div>
+                                        <div className="mt-auto flex items-center gap-2 text-orange-400 font-bold text-[10px] uppercase tracking-[0.2em] group-hover:translate-x-1 transition-all">
+                                            {hasResults ? 'Start Clash' : 'Build Pack First'} <ChevronRight size={12} />
+                                        </div>
+                                    </button>
+
+                                    {/* Join Arena Card */}
+                                    <div className="dash-card bg-white/[0.02] border-teal-500/10 flex flex-col gap-6 p-8">
+                                        <div className="w-14 h-14 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 shadow-xl shadow-teal-500/5">
+                                            <Plus size={24} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-white/90 font-semibold text-lg mb-1.5">Join Arena</h3>
+                                            <p className="text-stone-500 text-sm leading-relaxed">Have a code? Enter it to join any active duel or clash session.</p>
                                         </div>
                                         <div className="mt-auto space-y-4">
                                             <div className="flex gap-3">
@@ -708,13 +730,13 @@ export default function DashboardPage() {
                                                     onKeyDown={(e) => {
                                                         if (e.key === 'Enter') handleArenaCreateOrJoin('join', chatJoinInput);
                                                     }}
-                                                    placeholder="ARENA CODE"
-                                                    className="flex-1 bg-white/[0.05] border border-white/10 rounded-2xl px-6 py-4 text-white font-mono text-sm outline-none focus:border-teal-500/50 placeholder:text-white/10 tracking-[0.3em] uppercase transition-colors"
+                                                    placeholder="CODE"
+                                                    className="flex-1 bg-white/[0.05] border border-white/10 rounded-2xl px-4 py-3.5 text-white font-mono text-sm outline-none focus:border-teal-500/50 placeholder:text-white/10 tracking-[0.3em] uppercase transition-colors"
                                                 />
                                                 <button
                                                     onClick={() => handleArenaCreateOrJoin('join', chatJoinInput)}
                                                     disabled={isLoading || chatJoinInput.length < 4}
-                                                    className="px-8 py-4 rounded-2xl bg-teal-600/20 border border-teal-500/30 text-teal-300 text-xs font-bold hover:bg-teal-600/40 hover:border-teal-400 transition-all disabled:opacity-20 translate-z-0"
+                                                    className="px-6 py-3.5 rounded-2xl bg-teal-600/20 border border-teal-500/30 text-teal-300 text-xs font-bold hover:bg-teal-600/40 hover:border-teal-400 transition-all disabled:opacity-20"
                                                 >
                                                     {isLoading ? '...' : 'JOIN'}
                                                 </button>
@@ -739,41 +761,54 @@ export default function DashboardPage() {
                                                 <span className="text-7xl font-bold font-mono text-white tracking-widest animate-ping">READY</span>
                                             </div>
                                         )}
-                                        <h3 className="text-3xl font-playfair italic text-white/90 mb-3 text-center">Arena Lobby Setup</h3>
-                                        <p className="text-stone-400 text-sm mb-16 text-center">Waiting for both players to connect and ready up...</p>
+                                        <div className="flex items-center gap-3 mb-3">
+                                            {arenaState.mode === 'fourway' ? (
+                                                <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-orange-400 bg-orange-500/10 border border-orange-500/20 px-3 py-1 rounded-full">4-Way Clash</span>
+                                            ) : (
+                                                <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 px-3 py-1 rounded-full">1v1 Duel</span>
+                                            )}
+                                        </div>
+                                        <h3 className="text-3xl font-playfair italic text-white/90 mb-3 text-center">Arena Lobby</h3>
+                                        <p className="text-stone-400 text-sm mb-16 text-center">
+                                            {arenaState.mode === 'fourway'
+                                                ? `Waiting for all 4 players to connect and ready up... (${Object.values(arenaState.participants).length}/4)`
+                                                : `Waiting for both players to connect and ready up... (${Object.values(arenaState.participants).length}/2)`}
+                                        </p>
                                         
-                                        <div className="flex flex-col sm:flex-row items-center gap-12 w-full max-w-2xl justify-center z-20">
+                                        <div className="flex flex-wrap items-center gap-8 w-full max-w-3xl justify-center z-20">
+                                            {/* Joined players */}
                                             {Object.values(arenaState.participants).map((p: any) => (
-                                                <div key={p.user} className="flex flex-col items-center gap-5">
-                                                    <div className={`w-24 h-24 rounded-3xl border-2 flex items-center justify-center text-4xl font-bold transition-all duration-500 shadow-2xl
+                                                <div key={p.user} className="flex flex-col items-center gap-4">
+                                                    <div className={`w-20 h-20 rounded-3xl border-2 flex items-center justify-center text-3xl font-bold transition-all duration-500 shadow-2xl
                                                         ${p.isReady ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400 shadow-emerald-500/20 scale-105' : 'border-white/10 bg-white/5 text-white/40 border-dashed'}
                                                     `}>
                                                         {p.user.charAt(0).toUpperCase()}
                                                     </div>
                                                     <div className="text-center">
-                                                        <p className="text-white/90 font-medium mb-1.5 text-lg">{p.user} {p.user === (displayName || userName || "Anonymous") ? '(You)' : ''}</p>
-                                                        <span className={`text-[11px] uppercase tracking-widest font-bold ${p.isReady ? 'text-emerald-400' : 'text-stone-500'}`}>
+                                                        <p className="text-white/90 font-medium mb-1 text-base">{p.user} {p.user === (displayName || userName || "Anonymous") ? '(You)' : ''}</p>
+                                                        <span className={`text-[10px] uppercase tracking-widest font-bold ${p.isReady ? 'text-emerald-400' : 'text-stone-500'}`}>
                                                             {p.isReady ? 'READY' : 'Waiting...'}
                                                         </span>
                                                     </div>
                                                 </div>
                                             ))}
-                                            {Object.values(arenaState.participants).length === 1 && (
-                                                <div className="flex flex-col items-center gap-5">
-                                                    <div className="w-24 h-24 rounded-3xl border-2 border-dashed border-white/10 flex items-center justify-center text-white/20 animate-pulse text-4xl font-light">
+                                            {/* Empty placeholder slots */}
+                                            {Array.from({ length: (arenaState.mode === 'fourway' ? 4 : 2) - Object.values(arenaState.participants).length }).map((_, i) => (
+                                                <div key={`empty-${i}`} className="flex flex-col items-center gap-4">
+                                                    <div className="w-20 h-20 rounded-3xl border-2 border-dashed border-white/10 flex items-center justify-center text-white/20 animate-pulse text-3xl font-light">
                                                         ?
                                                     </div>
                                                     <div className="text-center">
-                                                        <p className="text-white/40 font-medium mb-1.5 text-lg">Waiting...</p>
-                                                        <span className="text-[11px] uppercase tracking-widest font-bold text-stone-600">
-                                                            Share code: {shareCode}
+                                                        <p className="text-white/30 font-medium mb-1 text-base">Open Slot</p>
+                                                        <span className="text-[10px] uppercase tracking-widest font-bold text-stone-600">
+                                                            Code: {shareCode}
                                                         </span>
                                                     </div>
                                                 </div>
-                                            )}
+                                            ))}
                                         </div>
 
-                                        <div className="mt-20 z-20">
+                                        <div className="mt-16 z-20">
                                             {arenaState.participants[displayName || userName || "Anonymous"]?.isReady ? (
                                                 <button onClick={() => handleArenaReady(false)} className="btn-metallic border-red-500/30 text-red-300/80 hover:bg-red-500/10 px-8">
                                                     Cancel Ready

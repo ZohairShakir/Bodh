@@ -21,7 +21,7 @@ import ArenaQuiz from "@/components/ArenaQuiz";
 type Mode = "summary" | "quiz" | "terms";
 
 export default function DashboardPage() {
-    const { isLoggedIn, logout, userName } = useAuth();
+    const { isLoggedIn, logout, userName, updateProfile, profile: userProfile } = useAuth();
     const router = useRouter();
 
     const [text, setText] = useState("");
@@ -52,7 +52,6 @@ export default function DashboardPage() {
     // HQ/Resources State
     const [resources, setResources] = useState<any[]>([]);
     const [libraryItems, setLibraryItems] = useState<any[]>([]);
-    const { profile: userProfile } = useAuth();
 
     const handleAskTutor = (ctx: any) => {
         setTutorEntryContext(ctx);

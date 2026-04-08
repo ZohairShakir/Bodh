@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 
-import { Sparkles, AlertCircle, FileText, ListChecks, Home, Search, Settings, History, Layers, MessageSquare, LogOut, ShieldCheck, BookOpen, Users, Plus, X, ChevronRight, Bot, Trophy, Trash2 } from "lucide-react";
+import { Sparkles, AlertCircle, FileText, ListChecks, Home, Search, Settings, History, Layers, MessageSquare, LogOut, ShieldCheck, BookOpen, Users, Plus, X, ChevronRight, Bot, Trophy, Trash2, Library, GraduationCap, Video, ExternalLink, Download } from "lucide-react";
 import InputPanel from "@/components/InputPanel";
 import GenerateButton from "@/components/GenerateButton";
 import SummaryPanel from "@/components/SummaryPanel";
@@ -28,7 +28,7 @@ export default function DashboardPage() {
     const [difficulty, setDifficulty] = useState("Medium");
     const [nQuestions, setNQuestions] = useState(7);
     const [language, setLanguage] = useState("English");
-    const [view, setView] = useState<"engine" | "history" | "settings" | "chat" | "duel">("engine");
+    const [view, setView] = useState<"hq" | "library" | "engine" | "history" | "settings" | "chat" | "duel">("hq");
 
     
     const [isLoading, setIsLoading] = useState(false);
@@ -48,6 +48,11 @@ export default function DashboardPage() {
     const [tutorEntryContext, setTutorEntryContext] = useState<any>(null);
     const [tutorChatHistory, setTutorChatHistory] = useState<any[]>([]);
     const [weakTopics, setWeakTopics] = useState<string[]>([]);
+    
+    // HQ/Resources State
+    const [resources, setResources] = useState<any[]>([]);
+    const [libraryItems, setLibraryItems] = useState<any[]>([]);
+    const { profile: userProfile } = useAuth();
 
     const handleAskTutor = (ctx: any) => {
         setTutorEntryContext(ctx);
@@ -77,6 +82,29 @@ export default function DashboardPage() {
 
     // Arena state
     const [arenaState, setArenaState] = useState<any>(null);
+
+    // Fetch Resources & Library
+    useEffect(() => {
+        if (!isLoggedIn || !userProfile) return;
+        
+        const fetchContent = async () => {
+            try {
+                const apiBase = process.env.NEXT_PUBLIC_API_URL?.replace('/generate', '') || "http://localhost:5000/api";
+                
+                // Fetch curated playlists
+                const resRes = await fetch(`${apiBase}/resources/${userProfile.studentClass}/${userProfile.stream || 'Science'}`);
+                if (resRes.ok) setResources(await resRes.json());
+                
+                // Fetch library PDFs
+                const libRes = await fetch(`${apiBase}/library/${userProfile.studentClass}`);
+                if (libRes.ok) setLibraryItems(await libRes.json());
+            } catch (err) {
+                console.error("Failed to fetch HQ content", err);
+            }
+        };
+        
+        fetchContent();
+    }, [isLoggedIn, userProfile]);
 
     // Global Chat Notification Polling & Duel Syncing
     useEffect(() => {
@@ -538,7 +566,9 @@ export default function DashboardPage() {
                     </div>
                 </div>
                 
-                <button id="tour-home" onClick={() => setView('engine')} className={`sidebar-icon-pill ${view === 'engine' ? 'active' : ''}`} title="Home"><Home size={20} /></button>
+                <button id="tour-hq" onClick={() => setView('hq')} className={`sidebar-icon-pill ${view === 'hq' ? 'active' : ''}`} title="HQ"><GraduationCap size={20} /></button>
+                <button id="tour-library" onClick={() => setView('library')} className={`sidebar-icon-pill ${view === 'library' ? 'active' : ''}`} title="Library"><Library size={20} /></button>
+                <button id="tour-home" onClick={() => setView('engine')} className={`sidebar-icon-pill ${view === 'engine' ? 'active' : ''}`} title="Quiz Engine"><Sparkles size={20} /></button>
                 <button id="tour-history" onClick={() => setView('history')} className={`sidebar-icon-pill ${view === 'history' ? 'active' : ''}`} title="History"><History size={20} /></button>
                 <button id="tour-chat" onClick={() => setView('chat')} className={`sidebar-icon-pill ${view === 'chat' ? 'active' : ''}`} title="Team Chat"><MessageSquare size={20} /></button>
                 <button id="tour-duel" onClick={() => setView('duel')} className={`sidebar-icon-pill ${view === 'duel' ? 'active' : ''}`} title="Quiz Duels"><Trophy size={20} /></button>
@@ -547,7 +577,9 @@ export default function DashboardPage() {
 
             {/* Mobile Navigation */}
             <div className="mobile-nav">
-                <button id="tour-home-mobile" onClick={() => setView('engine')} className={`mobile-nav-item ${view === 'engine' ? 'active' : ''}`}><Home size={20} /></button>
+                <button id="tour-hq-mobile" onClick={() => setView('hq')} className={`mobile-nav-item ${view === 'hq' ? 'active' : ''}`}><GraduationCap size={20} /></button>
+                <button id="tour-library-mobile" onClick={() => setView('library')} className={`mobile-nav-item ${view === 'library' ? 'active' : ''}`}><Library size={20} /></button>
+                <button id="tour-home-mobile" onClick={() => setView('engine')} className={`mobile-nav-item ${view === 'engine' ? 'active' : ''}`}><Sparkles size={20} /></button>
                 <button id="tour-history-mobile" onClick={() => setView('history')} className={`mobile-nav-item ${view === 'history' ? 'active' : ''}`}><History size={20} /></button>
                 <button id="tour-chat-mobile" onClick={() => setView('chat')} className={`mobile-nav-item ${view === 'chat' ? 'active' : ''}`}><MessageSquare size={20} /></button>
                 <button id="tour-duel-mobile" onClick={() => setView('duel')} className={`mobile-nav-item ${view === 'duel' ? 'active' : ''}`}><Trophy size={20} /></button>
@@ -592,6 +624,163 @@ export default function DashboardPage() {
                 </header>
 
                 <div className="dash-grid overflow-hidden pb-32">
+                    {/* HQ View: Personlized Student Dashboard */}
+                    {view === 'hq' && (
+                        <div className="col-span-12 space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                            {/* Profile Header Card */}
+                            <div className="flex flex-col md:flex-row gap-6 items-start justify-between bg-white/[0.02] border border-white/5 p-8 rounded-[32px] backdrop-blur-xl">
+                                <div className="flex gap-6 items-center">
+                                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 border border-white/10 flex items-center justify-center text-3xl shadow-2xl shadow-violet-500/10">
+                                        {userName?.charAt(0) || 'B'}
+                                    </div>
+                                    <div>
+                                        <h2 className="text-3xl font-playfair italic text-white/90">Student HQ</h2>
+                                        <div className="flex flex-wrap gap-2 mt-2">
+                                            <span className="px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-[10px] text-violet-300 font-bold uppercase tracking-widest">
+                                                Class {userProfile?.studentClass}
+                                            </span>
+                                            <span className="px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[10px] text-blue-300 font-bold uppercase tracking-widest">
+                                                {userProfile?.board}
+                                            </span>
+                                            {userProfile?.studentClass > 10 && (
+                                                <span className="px-3 py-1 rounded-full bg-fuchsia-500/10 border border-fuchsia-500/20 text-[10px] text-fuchsia-300 font-bold uppercase tracking-widest">
+                                                    {userProfile?.stream}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex gap-4 w-full md:w-auto">
+                                    <button 
+                                        onClick={() => setView('engine')} 
+                                        className="btn-metallic flex-1 md:flex-none !px-8 !py-3 bg-violet-600/10 border-violet-500/30 text-violet-200 hover:bg-violet-600/20 hover:border-violet-400 group relative overflow-hidden"
+                                    >
+                                        <div className="absolute inset-0 bg-gradient-to-r from-violet-500/0 via-white/5 to-violet-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
+                                        <Sparkles size={14} className="mr-2" />
+                                        <span>New Study Pack</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Resume Learning & Ongoing Stats */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="md:col-span-2 dash-card p-8 group hover:border-emerald-500/30 transition-all">
+                                    <div className="flex justify-between items-start mb-6">
+                                        <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-400"><BookOpen size={24} /></div>
+                                        <span className="text-[10px] text-emerald-500/40 font-bold uppercase tracking-widest">Now Reading</span>
+                                    </div>
+                                    <h3 className="text-xl font-medium text-white/90 mb-2 truncate">
+                                        {userProfile?.ongoingBook || "No book selected"}
+                                    </h3>
+                                    <p className="text-stone-500 text-sm mb-8">Continue from where you left off to maintain your streak.</p>
+                                    <button onClick={() => setView('library')} className="text-xs font-bold text-emerald-400 uppercase tracking-widest group-hover:translate-x-1 transition-transform inline-flex items-center gap-2">
+                                        Go to Library <ChevronRight size={14} />
+                                    </button>
+                                </div>
+                                <div className="dash-card p-8 group hover:border-violet-500/30 transition-all">
+                                    <div className="flex justify-between items-start mb-6">
+                                        <div className="p-3 rounded-2xl bg-violet-500/10 text-violet-400"><Video size={24} /></div>
+                                        <span className="text-[10px] text-violet-500/40 font-bold uppercase tracking-widest">Next Lecture</span>
+                                    </div>
+                                    <h3 className="text-lg font-medium text-white/90 mb-6 truncate">
+                                        {userProfile?.ongoingLecture || "Ready to learn?"}
+                                    </h3>
+                                    <div className="p-4 rounded-2xl bg-white/5 border border-white/5 text-[11px] text-white/40 italic">
+                                        Explore curated one-shots and playlists below.
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Curated Resources Section */}
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between px-2">
+                                    <h3 className="text-2xl font-playfair italic text-white/80">Curated Learning Hub</h3>
+                                    <p className="text-[10px] text-white/20 uppercase tracking-[0.2em]">Based on Class {userProfile?.studentClass}</p>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {resources.map((res: any, idx: number) => (
+                                        <div key={idx} className="dash-card p-0 overflow-hidden group hover:border-white/20 transition-all bg-white/[0.02]">
+                                            <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
+                                                <h4 className="text-sm font-bold text-white/60 tracking-wide">{res.category}</h4>
+                                                <ExternalLink size={14} className="text-white/20 group-hover:text-white/60 transition-colors" />
+                                            </div>
+                                            <div className="p-6 space-y-4">
+                                                {res.channels.map((chan: string, cIdx: number) => (
+                                                    <a key={cIdx} 
+                                                       href={`https://www.youtube.com/results?search_query=${encodeURIComponent(chan)}`}
+                                                       target="_blank"
+                                                       className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-all text-sm text-white/40 hover:text-white/90 group/item"
+                                                    >
+                                                        <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500 group-hover/item:bg-red-500/20 transition-all">
+                                                            <Video size={14} />
+                                                        </div>
+                                                        <span className="flex-1 font-medium">{chan}</span>
+                                                        <ChevronRight size={12} className="opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Library View: Book Repository */}
+                    {view === 'library' && (
+                        <div className="col-span-12 space-y-8 animate-in fade-in slide-in-from-right-4 duration-700">
+                             <div className="flex items-center justify-between px-2">
+                                <div>
+                                    <h2 className="font-playfair italic text-3xl text-white/90">Curated Library</h2>
+                                    <p className="text-stone-600 text-xs mt-1">Free access to NCERT and standard reference materials.</p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <span className="px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-400 font-bold uppercase tracking-widest">
+                                        {libraryItems.length} Books Found
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                {libraryItems.map((item: any) => (
+                                    <div key={item.id} className="dash-card group p-0 overflow-hidden flex flex-col hover:border-emerald-500/30 transition-all bg-white/[0.02]">
+                                        <div className="h-48 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 flex items-center justify-center border-b border-white/5">
+                                            <FileText size={48} className="text-emerald-500/20 group-hover:scale-110 transition-transform duration-500" />
+                                        </div>
+                                        <div className="p-6 flex-1 flex flex-col justify-between">
+                                            <div>
+                                                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-2 block">{item.subject}</span>
+                                                <h3 className="text-white/90 font-medium mb-1">{item.title}</h3>
+                                                <p className="text-[10px] text-white/20 uppercase font-mono">Class {item.class} • NCERT</p>
+                                            </div>
+                                            <div className="mt-8 flex gap-3">
+                                                <a href={item.url} target="_blank" className="flex-1 p-2.5 rounded-xl bg-white/5 border border-white/10 text-white/40 hover:text-white hover:bg-white/10 text-center transition-all">
+                                                    <ExternalLink size={14} className="mx-auto" />
+                                                </a>
+                                                <button 
+                                                    onClick={() => {
+                                                        if (item.subject === 'Video') {
+                                                            updateProfile({ ongoingLecture: item.title });
+                                                        } else {
+                                                            updateProfile({ ongoingBook: item.title });
+                                                        }
+                                                    }}
+                                                    className={`flex-[3] text-[10px] font-bold uppercase tracking-widest border transition-all p-2.5 rounded-xl ${
+                                                        item.subject === 'Video' 
+                                                            ? 'border-violet-500/20 text-violet-400 hover:bg-violet-500/10' 
+                                                            : 'border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10'
+                                                    }`}
+                                                >
+                                                    Select {item.subject === 'Video' ? 'Lecture' : 'Book'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Secondary Views: History and Settings */}
                     {view === 'history' && (
                         <div className="col-span-12 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -1178,6 +1367,27 @@ export default function DashboardPage() {
                 active={showGuide}
                 onDone={dismissGuide}
                 steps={[
+                    {
+                        targetId: 'tour-hq',
+                        title: 'Student HQ',
+                        body: 'Your personalized destination. Track your class, stream, and board, and see what you need to study next.',
+                        position: 'right',
+                        onActivate: () => setView('hq'),
+                    },
+                    {
+                        targetId: 'tour-library',
+                        title: 'Digital Library',
+                        body: 'Access all your NCERT books and reference materials in one place. No more hunting for PDFs.',
+                        position: 'right',
+                        onActivate: () => setView('library'),
+                    },
+                    {
+                        targetId: 'tour-home',
+                        title: 'Quiz & Summary Engine',
+                        body: 'The heart of Bodh. Paste your text here to generate custom study packs, quizzes, and summaries.',
+                        position: 'right',
+                        onActivate: () => setView('engine'),
+                    },
                     {
                         targetId: 'tour-input',
                         title: 'Synthesis Engine',

@@ -25,6 +25,11 @@ function AuthContent() {
     const [socialEmail, setSocialEmail] = useState('');
     const [socialName, setSocialName] = useState('');
 
+    // Student Profile State
+    const [studentClass, setStudentClass] = useState<string>('10');
+    const [board, setBoard] = useState<string>('CBSE');
+    const [stream, setStream] = useState<string>('Science');
+
     useEffect(() => {
         const modeParam = searchParams.get('mode');
         if (modeParam === 'login') setMode('login');
@@ -63,7 +68,14 @@ function AuthContent() {
             const res = await fetch(`${apiUrl}${endpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password, name: mode === 'signup' ? name : undefined })
+                body: JSON.stringify({ 
+                    email, 
+                    password, 
+                    name: mode === 'signup' ? name : undefined,
+                    studentClass: mode === 'signup' ? parseInt(studentClass) : undefined,
+                    board: mode === 'signup' ? board : undefined,
+                    stream: (mode === 'signup' && parseInt(studentClass) > 10) ? stream : undefined
+                })
             });
 
             const data = await res.json();
@@ -72,7 +84,7 @@ function AuthContent() {
                 throw new Error(data.error || 'Authentication failed');
             }
 
-            login(data.token, data.name, data.userId);
+            login(data.token, data.name, data.userId, data.profile);
             router.push('/dashboard');
         } catch (err: any) {
             setError(err.message || 'Something went wrong. Please try again.');
@@ -108,7 +120,7 @@ function AuthContent() {
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Google login failed');
 
-                login(data.token, data.name, data.userId);
+                login(data.token, data.name, data.userId, data.profile);
                 router.push('/dashboard');
             } catch (err: any) {
                 setError(err.message || 'Failed to authenticate with Google');
@@ -143,7 +155,7 @@ function AuthContent() {
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Social login failed');
-            login(data.token, data.name, data.userId);
+            login(data.token, data.name, data.userId, data.profile);
             router.push('/dashboard');
         } catch (err: any) {
             setError(err.message || `Failed to log in with ${socialProvider}`);
@@ -225,20 +237,64 @@ function AuthContent() {
 
                         <form onSubmit={handleSubmit}>
                             {mode === 'signup' && (
-                                <div className="form-group" style={{ marginBottom: '18px' }}>
-                                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 500, color: 'var(--silver)', marginBottom: '6px' }}>Full name</label>
-                                    <div className="input-wrapper" style={{ position: 'relative' }}>
-                                        <input
-                                            type="text"
-                                            className="form-input"
-                                            style={{ width: '100%', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.08)', borderBottom: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', padding: '12px 14px', fontSize: '13.5px', color: 'var(--white)', outline: 'none' }}
-                                            placeholder="Zohai"
-                                            value={name}
-                                            onChange={(e) => setName(e.target.value)}
-                                            required
-                                        />
+                                <>
+                                    <div className="form-group" style={{ marginBottom: '18px' }}>
+                                        <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 500, color: 'var(--silver)', marginBottom: '6px' }}>Full name</label>
+                                        <div className="input-wrapper" style={{ position: 'relative' }}>
+                                            <input
+                                                type="text"
+                                                className="form-input"
+                                                style={{ width: '100%', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.08)', borderBottom: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', padding: '12px 14px', fontSize: '13.5px', color: 'var(--white)', outline: 'none' }}
+                                                placeholder="Zohai"
+                                                value={name}
+                                                onChange={(e) => setName(e.target.value)}
+                                                required
+                                            />
+                                        </div>
                                     </div>
-                                </div>
+                                    
+                                    <div style={{ display: 'flex', gap: '12px', marginBottom: '18px' }}>
+                                        <div style={{ flex: 1 }}>
+                                            <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 500, color: 'var(--silver)', marginBottom: '6px' }}>Class</label>
+                                            <select 
+                                                value={studentClass}
+                                                onChange={(e) => setStudentClass(e.target.value)}
+                                                style={{ width: '100%', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.08)', borderBottom: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', padding: '12px 14px', fontSize: '13.5px', color: 'var(--white)', outline: 'none', appearance: 'none' }}
+                                            >
+                                                <option value="10" style={{ background: '#111' }}>Class 10</option>
+                                                <option value="11" style={{ background: '#111' }}>Class 11</option>
+                                                <option value="12" style={{ background: '#111' }}>Class 12</option>
+                                            </select>
+                                        </div>
+                                        <div style={{ flex: 1 }}>
+                                            <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 500, color: 'var(--silver)', marginBottom: '6px' }}>Board</label>
+                                            <select 
+                                                value={board}
+                                                onChange={(e) => setBoard(e.target.value)}
+                                                style={{ width: '100%', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.08)', borderBottom: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', padding: '12px 14px', fontSize: '13.5px', color: 'var(--white)', outline: 'none', appearance: 'none' }}
+                                            >
+                                                <option value="CBSE" style={{ background: '#111' }}>CBSE</option>
+                                                <option value="ICSE" style={{ background: '#111' }}>ICSE</option>
+                                                <option value="State Board" style={{ background: '#111' }}>State Board</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {parseInt(studentClass) > 10 && (
+                                        <div className="form-group" style={{ marginBottom: '18px' }}>
+                                            <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 500, color: 'var(--silver)', marginBottom: '6px' }}>Stream</label>
+                                            <select 
+                                                value={stream}
+                                                onChange={(e) => setStream(e.target.value)}
+                                                style={{ width: '100%', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.08)', borderBottom: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', padding: '12px 14px', fontSize: '13.5px', color: 'var(--white)', outline: 'none', appearance: 'none' }}
+                                            >
+                                                <option value="Science" style={{ background: '#111' }}>Science (Non-Medical/Medical)</option>
+                                                <option value="Commerce" style={{ background: '#111' }}>Commerce</option>
+                                                <option value="Humanities" style={{ background: '#111' }}>Humanities / Arts</option>
+                                            </select>
+                                        </div>
+                                    )}
+                                </>
                             )}
                             <div className="form-group" style={{ marginBottom: '18px' }}>
                                 <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 500, color: 'var(--silver)', marginBottom: '6px' }}>Your email</label>

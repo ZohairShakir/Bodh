@@ -87,8 +87,8 @@ export default function LandingPage() {
                         <span className="badge-pill">New</span>
                         Introducing AI-powered study tools for Indian students.
                     </div>
-                    <h1 className="hero-title r d1">The Study Tool Your Exams Deserve</h1>
-                    <p className="hero-sub r d2">Paste your notes. Get a summary, quiz, and glossary in seconds.<br />Built for Indian college students. No login. No friction.</p>
+                    <h1 className="hero-title r d1">Your Academic Student HQ</h1>
+                    <p className="hero-sub r d2">The all-in-one destination for Class 10, 11, and 12 students. Personalized playlists, a complete NCERT library, and the world's most powerful AI study engine.<br />Built for Board Exams. Optimized for Success.</p>
                     <div className="hero-actions r d3">
                         <Link href="/auth?mode=signup" className="btn-outline">
                             Try Bodh Free
@@ -106,13 +106,13 @@ export default function LandingPage() {
                 </div>
 
                 <div className="hero-logos-wrapper">
-                    <div className="hero-logos-badge">Works great for subjects like</div>
+                    <div className="hero-logos-badge">Personalized for subjects like</div>
                     <div className="hero-logos">
-                        <span>Data Structures</span>
-                        <span>Thermodynamics</span>
-                        <span>Fluid Mechanics</span>
-                        <span>Signals & Systems</span>
-                        <span>Machine Learning</span>
+                        <span>Physics (Class 12)</span>
+                        <span>Maths (Boards)</span>
+                        <span>Chemistry (NCERT)</span>
+                        <span>Biology (Class 11)</span>
+                        <span>English Literature</span>
                     </div>
                 </div>
             </section>
@@ -133,11 +133,11 @@ export default function LandingPage() {
                     </svg>
                 </div>
                 <div className="how-inner">
-                    <div className="s-badge r">How It Works</div>
-                    <h2 className="s-title r d1">You paste it. Bodh builds it.</h2>
-                    <p className="s-sub r d2">Paste any lecture note, chapter excerpt, or PDF text — Bodh returns a structured summary, a ready-to-use MCQ quiz, and a key terms glossary. One AI call. Under 8 seconds.</p>
+                    <div className="s-badge r">Personal Path</div>
+                    <h2 className="s-title r d1">A smarter way to study.</h2>
+                    <p className="s-sub r d2">Enter your class and branch to instantly unlock your personalized Student HQ. From NCERT digital books to curated playlists from India's best educators, Bodh organizes your entire academic life in one seamless dashboard.</p>
                     <Link href="/auth?mode=signup" className="btn-outline r d3">
-                        Try It Now
+                        Enter Your HQ
                         <svg width="10" height="10" viewBox="0 0 11 11" fill="none">
                             <path d="M1 10L10 1M10 1H3M10 1V8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
@@ -153,39 +153,59 @@ export default function LandingPage() {
                 <div className="feat-grid">
                     <div className="feat-card r">
                         <div className="feat-text">
-                            <h3>Summaries that actually make sense.</h3>
-                            <p>Bodh reads your notes and organises them into clean topic-by-topic bullet summaries — the way a topper would write them, not a machine.</p>
-                            <a href="#hero" className="btn-outline">
-                                View Example
-                            </a>
+                            <h3>A Personalized Dashboard for Every Student.</h3>
+                            <p>Bodh adapts to you. Your Class, your Board, your Stream. Track what you're reading, what lecture is next, and stay ahead of the curve with a workspace that evolves with your syllabus.</p>
+                            <Link href="/auth?mode=signup" className="btn-outline">
+                                View Your HQ
+                            </Link>
                         </div>
                         <div className="feat-vis">
-                            <div className="cube">
-                                <svg viewBox="0 0 200 200" fill="none">
-                                    <rect className="nb" x="40" y="40" width="120" height="120" stroke="rgba(108, 99, 255, 0.4)" strokeWidth="0.5" />
-                                    <rect className="nb2" x="60" y="60" width="80" height="80" stroke="rgba(108, 99, 255, 0.2)" strokeWidth="0.5" />
-                                    <circle className="pr" cx="100" cy="100" r="12" stroke="#a89fff" strokeWidth="0.5" />
-                                    <circle className="pr2" cx="100" cy="100" r="18" stroke="#a89fff" strokeWidth="0.2" />
-                                </svg>
+                            <div className="mock-ui-box">
+                                <div className="mock-header">
+                                    <div className="mock-circle" />
+                                    <div className="mock-title">Student HQ</div>
+                                </div>
+                                <div className="mock-body">
+                                    <div className="mock-tag-row">
+                                        <div className="mock-tag bg-violet-500/20 text-violet-300">Class 12</div>
+                                        <div className="mock-tag bg-blue-500/20 text-blue-300">CBSE</div>
+                                    </div>
+                                    <div className="mock-stat-card">
+                                        <div className="mock-label">Now Reading</div>
+                                        <div className="mock-value">NCERT Chemistry Part II</div>
+                                    </div>
+                                    <div className="mock-bar-container">
+                                        <div className="mock-bar-inner bg-violet-500" style={{ width: '65%' }}></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     <div className="feat-card r feat-card-rev">
                         <div className="feat-vis">
-                            <div className="cube">
-                                <svg viewBox="0 0 200 200" fill="none">
-                                    <path d="M60 140 L100 60 L140 140 Z" stroke="rgba(29, 158, 117, 0.4)" strokeWidth="0.8" />
-                                    <circle cx="100" cy="100" r="40" stroke="rgba(29, 158, 117, 0.1)" strokeWidth="0.5" />
-                                    <rect x="70" y="70" width="60" height="60" stroke="#1d9e75" strokeWidth="0.3" strokeDasharray="2 2" className="animate-pulse" />
-                                </svg>
+                             <div className="mock-ui-box">
+                                <div className="mock-header" style={{ borderColor: 'rgba(16, 185, 129, 0.2)' }}>
+                                    <div className="mock-circle" style={{ background: '#10b981' }} />
+                                    <div className="mock-title" style={{ color: '#10b981' }}>Curated Library</div>
+                                </div>
+                                <div className="mock-body">
+                                    <div className="mock-book-row">
+                                        <div className="mock-book bg-emerald-500/10 border-emerald-500/20">Maths</div>
+                                        <div className="mock-book bg-emerald-500/10 border-emerald-500/20">Physics</div>
+                                    </div>
+                                    <div className="mock-book-row">
+                                        <div className="mock-book bg-emerald-500/10 border-emerald-500/20">Biology</div>
+                                        <div className="mock-book bg-emerald-500/10 border-emerald-500/20">English</div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div className="feat-text">
-                            <h3>Test your edge with the Quiz Arena.</h3>
-                            <p>Turn any document into a competitive landscape. Challenge your batchmates to a real-time duel and see who mastered the material first.</p>
+                            <h3>High-Quality Resources. One Click Away.</h3>
+                            <p>No more hunting for PDFs on sketchy websites. Access a complete, curated library of NCERT books and standardized playlists from top Indian educators—all in one place.</p>
                             <Link href="/auth?mode=signup" className="btn-outline">
-                                Start a Duel
+                                Explore Library
                             </Link>
                         </div>
                     </div>
@@ -202,8 +222,8 @@ export default function LandingPage() {
                         <div className="diff-icon-box">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
                         </div>
-                        <h4>Built for Indian Exams</h4>
-                        <p>Optimized for subjects frequently taught in Indian engineering and degree colleges.</p>
+                        <h4>Built for Board Exams</h4>
+                        <p>Optimized for CBSE, ICSE, and State Board curriculum for Class 10, 11, and 12.</p>
                     </div>
                     <div className="diff-card r d1">
                         <div className="diff-icon-box">
@@ -224,7 +244,7 @@ export default function LandingPage() {
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.5 4 6.5 2 2 3 3.5 3 5.5a6.5 6.5 0 1 1-13 0z" /></svg>
                         </div>
                         <h4>Zero Friction</h4>
-                        <p>No login required to start. No bloated UI. Just clear, high-speed academic synthesis.</p>
+                        <p>Get personalized in seconds. No bloated UI. Just clear, high-speed academic synthesis.</p>
                     </div>
                 </div>
             </section>
@@ -258,24 +278,24 @@ export default function LandingPage() {
                 </div>
                 <div className="testi-row">
                     <div className="tcard r">
-                        <div className="tcard-q">"Bodh saved my Fluid Mechanics exam. The summaries are so much easier to read than the 400-page textbook."</div>
+                        <div className="tcard-q">"Bodh saved my Physics boards. The centralized library and summary engine are literal life savers during revisions."</div>
                         <div className="tcard-author">
                             <div className="tcard-name">Aarav Mehta</div>
-                            <div className="tcard-role">Mechanical Engineering, BITS</div>
+                            <div className="tcard-role">Class 12, CBSE</div>
                         </div>
                     </div>
                     <div className="tcard r d1">
-                        <div className="tcard-q">"The quiz generation is literal magic. I just paste my notes and I have a practice test ready for my internals."</div>
+                        <div className="tcard-q">"The quiz generation for NCERT chapters is magic. I can test my knowledge of any chapter in under 10 seconds."</div>
                         <div className="tcard-author">
                             <div className="tcard-name">Isha Sharma</div>
-                            <div className="tcard-role">Computer Science, MIT</div>
+                            <div className="tcard-role">Class 10, ICSE</div>
                         </div>
                     </div>
                     <div className="tcard r d2">
-                        <div className="tcard-q">"Clean, fast, and no-BS. It gives me exactly what I need to study effectively without any of the fluff."</div>
+                        <div className="tcard-q">"Instead of searching for playlists on YouTube for hours, I just check my HQ. It's the cleanest UI for students ever."</div>
                         <div className="tcard-author">
                             <div className="tcard-name">Rohan Gupta</div>
-                            <div className="tcard-role">Electrical Eng., IIT Delhi</div>
+                            <div className="tcard-role">Class 11, Science Stream</div>
                         </div>
                     </div>
                 </div>

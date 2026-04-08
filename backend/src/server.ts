@@ -100,7 +100,7 @@ ${text}
 // AUTH ENDPOINTS
 app.post('/api/auth/register', async (req: Request, res: Response) => {
     try {
-        const { email, password, name } = req.body;
+        const { email, password, name, studentClass, board, stream } = req.body;
         if (!email || !password || password.length < 6) {
             return res.status(400).json({ error: "Email and 6+ char password required." });
         }
@@ -109,11 +109,18 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
             return res.status(400).json({ error: "Email already registered." });
         }
         const passwordHash = await bcrypt.hash(password, 10);
-        const newUser = new User({ email: email.toLowerCase(), passwordHash, name });
+        const newUser = new User({ 
+            email: email.toLowerCase(), 
+            passwordHash, 
+            name,
+            studentClass,
+            board,
+            stream
+        });
         await newUser.save();
 
         const token = jwt.sign({ id: newUser._id, email: newUser.email, name: newUser.name }, JWT_SECRET, { expiresIn: '7d' });
-        res.status(201).json({ token, name: newUser.name, userId: newUser._id });
+        res.status(201).json({ token, name: newUser.name, userId: newUser._id, profile: { studentClass, board, stream } });
     } catch (err) {
         res.status(500).json({ error: "Registration failed." });
     }
@@ -127,7 +134,18 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
             return res.status(401).json({ error: "Invalid credentials." });
         }
         const token = jwt.sign({ id: user._id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
-        res.json({ token, name: user.name, userId: user._id });
+        res.json({ 
+            token, 
+            name: user.name, 
+            userId: user._id, 
+            profile: { 
+                studentClass: user.studentClass, 
+                board: user.board, 
+                stream: user.stream,
+                ongoingBook: user.ongoingBook,
+                ongoingLecture: user.ongoingLecture
+            } 
+        });
     } catch (err) {
         res.status(500).json({ error: "Login failed." });
     }
@@ -211,7 +229,16 @@ app.post('/api/auth/social-login', async (req: Request, res: Response) => {
         }
 
         const token = jwt.sign({ id: user._id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
-        res.json({ token, name: user.name, userId: user._id });
+        res.json({ 
+            token, 
+            name: user.name, 
+            userId: user._id,
+            profile: { 
+                studentClass: user.studentClass, 
+                board: user.board, 
+                stream: user.stream 
+            }
+        });
     } catch (err) {
         console.error("Social login overall error:", err);
         res.status(500).json({ error: "Social login failed." });
@@ -595,6 +622,113 @@ app.post('/api/arena/:code/answer', async (req: Request, res: Response) => {
     } catch (err) {
         res.status(500).json({ error: "Answer submission failed." });
     }
+});
+
+// PROFILE & RESOURCES DATA
+const CORE_RESOURCES: any = {
+    10: [
+        { category: "All Subjects", channels: ["Physics Wallah", "Magnet Brains", "LearnoHub", "Khan Academy"] },
+        { category: "Maths", channels: ["Ashish4Students", "Eduhap"] },
+        { category: "Science", channels: ["Eduhap", "Ashu Sir Science", "Vedantu (Abhishek Sir)"] },
+        { category: "English", channels: ["Dear Sir", "ExtraClass", "Simran Sahani"] },
+        { category: "SST", channels: ["Social School", "Padhle Akshay", "BKP"] }
+    ],
+    11: {
+        Science: [
+            { category: "Science (PCMB)", channels: ["Physics Wallah", "LearnoHub", "Organic Chemistry Tutor", "Cbsewise (Maths)"] },
+            { category: "English", channels: ["Simran Sahani", "ExtraClass", "Appedia"] }
+        ],
+        Commerce: [
+            { category: "Commerce", channels: ["Unacademy (Accounts/Eco)", "Magnet Brains"] },
+            { category: "English", channels: ["Simran Sahani", "ExtraClass", "Appedia"] }
+        ],
+        Humanities: [
+            { category: "Humanities", channels: ["Padhle Akshay", "Next Toppers"] },
+            { category: "English", channels: ["Simran Sahani", "ExtraClass", "Appedia"] }
+        ]
+    },
+    12: {
+        Science: [
+            { category: "Science (PCMB)", channels: ["Physics Wallah", "LearnoHub", "Vedantu Maths", "Biomentors", "Etoos Education", "Next Toppers"] },
+            { category: "English", channels: ["Magnet Brains English", "Shipra Mishra", "Rahul Dwivedi"] }
+        ],
+        Commerce: [
+            { category: "Commerce", channels: ["Priya Thapar (Maths)", "Unacademy Commerce"] },
+            { category: "English", channels: ["Magnet Brains English", "Shipra Mishra", "Rahul Dwivedi"] }
+        ],
+        Humanities: [
+            { category: "Humanities", channels: ["Magnet Brains", "NCERT Official"] },
+            { category: "English", channels: ["Magnet Brains English", "Shipra Mishra", "Rahul Dwivedi"] }
+        ]
+    }
+};
+
+app.get('/api/user/profile/:userId', async (req: Request, res: Response) => {
+    try {
+        const user = await User.findById(req.params.userId);
+        if (!user) return res.status(404).json({ error: "User not found" });
+        res.json({
+            studentClass: user.studentClass,
+            board: user.board,
+            stream: user.stream,
+            ongoingBook: user.ongoingBook,
+            ongoingLecture: user.ongoingLecture,
+            name: user.name,
+            email: user.email
+        });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to fetch profile" });
+    }
+});
+
+app.put('/api/user/profile/:userId', async (req: Request, res: Response) => {
+    try {
+        const update = req.body;
+        const user = await User.findByIdAndUpdate(req.params.userId, update, { new: true });
+        res.json(user);
+    } catch (err) {
+        res.status(500).json({ error: "Update failed" });
+    }
+});
+
+app.get('/api/resources/:class/:stream?', async (req: Request, res: Response) => {
+    try {
+        const { class: sClass, stream } = req.params;
+        const cls = parseInt(sClass);
+        let resources = [];
+        
+        if (cls === 10) {
+            resources = CORE_RESOURCES[10];
+        } else if (CORE_RESOURCES[cls]) {
+            resources = CORE_RESOURCES[cls][stream || 'Science'] || CORE_RESOURCES[cls]['Science'];
+        }
+        
+        res.json(resources);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to fetch resources" });
+    }
+});
+
+app.get('/api/library/:class/:subject?', async (req: Request, res: Response) => {
+    // Mock library data for now
+    const library = [
+        { id: 'ncert-m-10', title: 'NCERT Mathematics', class: 10, subject: 'Maths', url: 'https://ncert.nic.in/textbook.php?jemh1=0-14' },
+        { id: 'ncert-s-10', title: 'NCERT Science', class: 10, subject: 'Science', url: 'https://ncert.nic.in/textbook.php?jesc1=0-16' },
+        { id: 'ncert-en-10', title: 'First Flight (English)', class: 10, subject: 'English', url: 'https://ncert.nic.in/textbook.php?jeff1=0-11' },
+        { id: 'ncert-ss-10', title: 'India and the Contemporary World II', class: 10, subject: 'SST', url: 'https://ncert.nic.in/textbook.php?jess3=0-8' },
+        
+        { id: 'ncert-p-11', title: 'NCERT Physics Part I', class: 11, subject: 'Physics', url: 'https://ncert.nic.in/textbook.php?keph1=0-8' },
+        { id: 'ncert-c-11', title: 'Chemistry Part I', class: 11, subject: 'Chemistry', url: 'https://ncert.nic.in/textbook.php?kech1=0-7' },
+        { id: 'ncert-b-11', title: 'Biology Textbook', class: 11, subject: 'Biology', url: 'https://ncert.nic.in/textbook.php?kebo1=0-22' },
+        
+        { id: 'ncert-p-12', title: 'Physics Part II', class: 12, subject: 'Physics', url: 'https://ncert.nic.in/textbook.php?leph2=0-8' },
+        { id: 'ncert-c-12', title: 'Chemistry Part II', class: 12, subject: 'Chemistry', url: 'https://ncert.nic.in/textbook.php?lech2=0-7' },
+        { id: 'ncert-b-12', title: 'NCERT Biology', class: 12, subject: 'Biology', url: 'https://ncert.nic.in/textbook.php?lebo1=0-16' },
+        { id: 'vid-p-12', title: 'Physics Class 12 One Shot', class: 12, subject: 'Video', url: 'https://www.youtube.com/results?search_query=physics+class+12+one+shot' },
+        { id: 'vid-m-10', title: 'Maths Class 10 Full Revision', class: 10, subject: 'Video', url: 'https://www.youtube.com/results?search_query=maths+class+10+full+revision' },
+    ];
+    const filtered = library.filter(b => b.class === parseInt(req.params.class));
+    res.json(filtered);
 });
 
 app.listen(port, () => {

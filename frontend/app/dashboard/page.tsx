@@ -221,7 +221,7 @@ export default function DashboardPage() {
     const handleChatCreate = async () => {
         if (!hasResults) {
             setChatMode('lobby');
-            setView('engine');
+            setView('create');
             return;
         }
         setChatError(null);

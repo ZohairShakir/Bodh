@@ -3,15 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
 import { Menu, X, ArrowUpRight } from 'lucide-react';
 
 const Navbar = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const { isLoggedIn, logout } = useAuth();
     const pathname = usePathname();
 
-    // Close menu when route changes or window is resized
     useEffect(() => {
         setIsMenuOpen(false);
     }, [pathname]);
@@ -49,8 +46,8 @@ const Navbar = () => {
                         ))}
                     </ul>
 
-                    <Link href="/auth?mode=signup" className="nav-cta">
-                        Try Bodh
+                    <Link href="/dashboard" className="nav-cta">
+                        Enter Arena
                         <ArrowUpRight size={14} />
                     </Link>
 
@@ -81,18 +78,9 @@ const Navbar = () => {
                         </li>
                     ))}
                     <li className="mt-4">
-                        {isLoggedIn ? (
-                            <button 
-                                onClick={() => { logout(); setIsMenuOpen(false); }}
-                                className="text-red-400 font-medium italic text-3xl"
-                            >
-                                Logout
-                            </button>
-                        ) : (
-                            <Link href="/auth?mode=signup" onClick={() => setIsMenuOpen(false)} className="font-playfair text-4xl italic text-white/90">
-                                Login
-                            </Link>
-                        )}
+                        <Link href="/dashboard" onClick={() => setIsMenuOpen(false)} className="font-playfair text-4xl italic text-white/90">
+                            Enter Arena
+                        </Link>
                     </li>
                 </ul>
             </div>

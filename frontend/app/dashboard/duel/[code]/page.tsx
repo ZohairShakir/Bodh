@@ -4,30 +4,25 @@ import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ShieldCheck, ArrowLeft, Trophy, Users, Bot } from "lucide-react";
 import ConfidenceQuiz from "@/components/ConfidenceQuiz";
-import { useAuth } from "@/context/AuthContext";
+import { useUser } from "@/context/UserContext";
 import Navbar from "@/components/Navbar";
 
 export default function DuelPage() {
     const params = useParams();
     const router = useRouter();
     const code = params.code as string;
-    const { userName } = useAuth();
-    
+    const { userName, avatarId } = useUser();
+    const [displayName, setDisplayName] = useState("");
     const [pack, setPack] = useState<any>(null);
     const [results, setResults] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [displayName, setDisplayName] = useState("");
 
     useEffect(() => {
-        const saved = localStorage.getItem(`bodh_prefs_${userName}`);
+        const saved = localStorage.getItem('bodh_user_profile');
         if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                setDisplayName(parsed.displayName || userName || "");
-            } catch (e) {
-                setDisplayName(userName || "");
-            }
+            try { const p = JSON.parse(saved); setDisplayName(p.displayName || userName || ""); }
+            catch { setDisplayName(userName || ""); }
         } else {
             setDisplayName(userName || "");
         }

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { AuthProvider } from "@/context/AuthContext";
+import { UserProvider } from "@/context/UserContext";
 
 /**
  * ClientWrapper handles all logic and UI that depends on browser APIs (window, document).
@@ -80,7 +80,7 @@ export default function ClientWrapper({ children }: { children: React.ReactNode 
 
     // Render children initially but keep cursor elements hidden until hydration
     return (
-        <AuthProvider>
+        <UserProvider>
             <div 
                 className="cursor" 
                 id="cur" 
@@ -92,6 +92,6 @@ export default function ClientWrapper({ children }: { children: React.ReactNode 
                 style={{ opacity: isMounted ? 0.6 : 0, width: '32px', height: '32px' }}
             ></div>
             {children}
-        </AuthProvider>
+        </UserProvider>
     );
 }

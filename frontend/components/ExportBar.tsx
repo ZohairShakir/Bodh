@@ -1,28 +1,20 @@
 "use client";
 
 import React, { useState } from "react";
-import { Download, Link as LinkIcon, Check, FileDown, Share2, Loader2 } from "lucide-react";
+import { Link as LinkIcon, Check, Share2 } from "lucide-react";
 
 interface ExportBarProps {
-    onDownload: () => void;
     onCopyLink: () => void;
     isVisible: boolean;
 }
 
-export default function ExportBar({ onDownload, onCopyLink, isVisible }: ExportBarProps) {
+export default function ExportBar({ onCopyLink, isVisible }: ExportBarProps) {
     const [copied, setCopied] = useState(false);
-    const [downloading, setDownloading] = useState(false);
 
     const handleCopy = () => {
         setCopied(true);
         onCopyLink();
         setTimeout(() => setCopied(false), 2000);
-    };
-
-    const handleDownload = () => {
-        setDownloading(true);
-        onDownload();
-        setTimeout(() => setDownloading(false), 1500);
     };
 
     if (!isVisible) return null;
@@ -33,34 +25,22 @@ export default function ExportBar({ onDownload, onCopyLink, isVisible }: ExportB
             <div className="hidden sm:block fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
                 <div className="flex items-center gap-1 p-1 bg-neutral-900 shadow-2xl shadow-indigo-500/10 border border-white/10 rounded-full glass animate-in slide-in-from-bottom-8 duration-700 delay-300">
                     <button 
-                        onClick={handleDownload}
-                        className="flex items-center gap-2.5 px-6 py-2.5 rounded-full bg-indigo-600 text-white text-[11px] font-bold transition-all active:scale-95 group shadow-2xl relative overflow-hidden"
+                        onClick={handleCopy}
+                        className="flex items-center gap-2.5 px-8 py-3 rounded-full bg-indigo-600 text-white text-[11px] font-bold transition-all active:scale-95 group shadow-2xl relative overflow-hidden"
                         style={{
                             borderTop: '1px solid rgba(180, 170, 255, 0.5)',
                             boxShadow: '0 0 20px rgba(108, 99, 255, 0.15), inset 0 1px 0 rgba(180,170,255,0.15)'
                         }}
                     >
-                        {downloading ? (
-                             <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                             <Download size={14} className="group-hover:translate-y-0.5 transition-transform" />
-                        )}
-                        DOWNLOAD STUDY PACK (PDF)
-                    </button>
-                    
-                    <button 
-                        onClick={handleCopy}
-                        className="flex items-center gap-2.5 px-6 py-2.5 rounded-full hover:bg-white/5 text-stone-300 hover:text-white text-xs font-bold transition-all group"
-                    >
                         {copied ? (
                              <>
-                                <Check size={14} className="text-emerald-400" />
-                                <span className="text-emerald-400">COPIED!</span>
+                                <Check size={14} className="text-white" />
+                                <span>COPIED ARENA LINK!</span>
                              </>
                         ) : (
                              <>
-                                <LinkIcon size={14} className="group-hover:rotate-12 transition-transform" />
-                                <span>COPY SHARE LINK</span>
+                                <Share2 size={14} className="group-hover:rotate-12 transition-transform" />
+                                <span>SHARE ARENA LOBBY</span>
                              </>
                         )}
                     </button>
@@ -68,26 +48,13 @@ export default function ExportBar({ onDownload, onCopyLink, isVisible }: ExportB
             </div>
 
             {/* Mobile FAB */}
-            <div className="sm:hidden fixed bottom-[176px] right-6 z-[105] flex flex-col items-end gap-4 group">
-                <div className={`flex flex-col items-end gap-4 transition-all duration-500 transform scale-0 origin-bottom group-hover:scale-100`}>
-                     <button 
-                        onClick={handleCopy}
-                        className="glass-metal w-14 h-14 rounded-full flex items-center justify-center text-white/70 hover:text-white shadow-2xl relative overflow-hidden"
-                    >
-                        {copied ? <Check size={20} className="text-emerald-400" /> : <Share2 size={20} />}
-                        <div className="absolute inset-0 bg-white/5 opacity-0 hover:opacity-100 transition-opacity" />
-                    </button>
-                    <button 
-                        onClick={handleDownload}
-                        className="glass-metal w-14 h-14 rounded-full flex items-center justify-center text-white/70 hover:text-white shadow-2xl relative overflow-hidden"
-                    >
-                        <Download size={20} />
-                        <div className="absolute inset-0 bg-white/5 opacity-0 hover:opacity-100 transition-opacity" />
-                    </button>
-                </div>
-                <button className="glass-metal-fab w-18 h-18 text-white hover:scale-110 active:scale-95 transition-all">
-                    <div className="absolute inset-0 bg-indigo-500/20 blur-xl group-hover:bg-indigo-500/30 transition-all" />
-                    <FileDown size={32} className="relative z-10" />
+            <div className="sm:hidden fixed bottom-[96px] right-6 z-[105] flex flex-col items-end gap-4 group">
+                 <button 
+                    onClick={handleCopy}
+                    className="glass-metal w-14 h-14 rounded-full flex items-center justify-center text-white/70 hover:text-white shadow-2xl relative overflow-hidden"
+                >
+                    {copied ? <Check size={20} className="text-emerald-400" /> : <Share2 size={20} />}
+                    <div className="absolute inset-0 bg-white/5 opacity-0 hover:opacity-100 transition-opacity" />
                 </button>
             </div>
         </>

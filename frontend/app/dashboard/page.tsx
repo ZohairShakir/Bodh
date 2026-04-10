@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 
-import { Sparkles, AlertCircle, FileText, ListChecks, Home, Search, Settings, History, Layers, MessageSquare, LogOut, ShieldCheck, BookOpen, Users, Plus, X, ChevronRight, Bot, Trophy, Trash2, Library, GraduationCap, Video, ExternalLink, Download } from "lucide-react";
+import { Sparkles, AlertCircle, FileText, ListChecks, Settings, History, Layers, MessageSquare, ShieldCheck, Users, Plus, X, ChevronRight, Bot, Trophy, Trash2, Swords, Zap, Search } from "lucide-react";
 import InputPanel from "@/components/InputPanel";
 import GenerateButton from "@/components/GenerateButton";
 import SummaryPanel from "@/components/SummaryPanel";
@@ -11,24 +11,26 @@ import FlashcardsPanel from "@/components/FlashcardsPanel";
 import ExportBar from "@/components/ExportBar";
 import { generateStudyPackPDF } from "@/lib/pdfGenerator";
 import { encodeStudyPack, decodeStudyPack, QuizItem } from "@/lib/shareLink";
-import { useAuth } from "@/context/AuthContext";
+import { useUser } from "@/context/UserContext";
 import { useRouter } from "next/navigation";
 import ChatPanel from "@/components/ChatPanel";
 import ProductTour from "@/components/ProductTour";
 import BodhTutorPanel from "@/components/BodhTutorPanel";
 import ArenaQuiz from "@/components/ArenaQuiz";
+import ArenaLobby from "@/components/Arena/ArenaLobby";
+import ArenaSetupOverlay from "@/components/Arena/ArenaSetupOverlay";
 
 type Mode = "summary" | "quiz" | "terms";
 
 export default function DashboardPage() {
-    const { isLoggedIn, logout, userName, updateProfile, profile: userProfile } = useAuth();
+    const { userName, avatarId: savedAvatarId, hasProfile, setProfile, updateProfile: updateUserProfile, historyCodes, addHistoryCode, removeHistoryCode } = useUser();
     const router = useRouter();
 
     const [text, setText] = useState("");
     const [difficulty, setDifficulty] = useState("Medium");
     const [nQuestions, setNQuestions] = useState(7);
     const [language, setLanguage] = useState("English");
-    const [view, setView] = useState<"hq" | "library" | "engine" | "history" | "settings" | "chat" | "duel">("hq");
+    const [view, setView] = useState<"arena" | "create" | "history" | "settings" | "chat">("arena");
 
     
     const [isLoading, setIsLoading] = useState(false);
@@ -49,28 +51,21 @@ export default function DashboardPage() {
     const [tutorChatHistory, setTutorChatHistory] = useState<any[]>([]);
     const [weakTopics, setWeakTopics] = useState<string[]>([]);
     
-    // HQ/Resources State
+    // Arena state
+    const [arenaState, setArenaState] = useState<any>(null);
     const [resources, setResources] = useState<any[]>([]);
-    const [libraryItems, setLibraryItems] = useState<any[]>([]);
+    const [activeArenaSetup, setActiveArenaSetup] = useState<'duel' | 'fourway' | null>(null);
 
-    const handleAskTutor = (ctx: any) => {
-        setTutorEntryContext(ctx);
-        setIsTutorOpen(true);
-    };
-
-    const handleAskTutorTopic = (topic: string, bullets: string[]) => {
-        setTutorEntryContext({ type: 'topic_question', topic, bullets });
-        setIsTutorOpen(true);
-    };
-
-    // Onboarding guide
-    const [showGuide, setShowGuide] = useState(false);
-    const [guideStep, setGuideStep] = useState(0);
-
-    // Settings state — real values
+    // Settings state
     const [displayName, setDisplayName] = useState("");
+    const [avatarId, setAvatarId] = useState("A1");
     const [prefLanguage, setPrefLanguage] = useState("English");
     const [settingsSaved, setSettingsSaved] = useState(false);
+
+    // Profile overlay (shown on first visit)
+    const [showProfileOverlay, setShowProfileOverlay] = useState(false);
+    const [overlayName, setOverlayName] = useState("");
+    const [overlayAvatar, setOverlayAvatar] = useState("A1");
 
     // Chat lobby state
     const [chatMode, setChatMode] = useState<"lobby" | "join" | "create" | "active">("lobby");
@@ -79,31 +74,19 @@ export default function DashboardPage() {
     const [chatToast, setChatToast] = useState<{user: string, preview: string} | null>(null);
     const lastMsgCountRef = useRef(0);
 
-    // Arena state
-    const [arenaState, setArenaState] = useState<any>(null);
+    // Onboarding guide
+    const [showGuide, setShowGuide] = useState(false);
+    const [guideStep, setGuideStep] = useState(0);
 
-    // Fetch Resources & Library
-    useEffect(() => {
-        if (!isLoggedIn || !userProfile) return;
-        
-        const fetchContent = async () => {
-            try {
-                const apiBase = process.env.NEXT_PUBLIC_API_URL?.replace('/generate', '') || "http://localhost:5000/api";
-                
-                // Fetch curated playlists
-                const resRes = await fetch(`${apiBase}/resources/${userProfile.studentClass}/${userProfile.stream || 'Science'}`);
-                if (resRes.ok) setResources(await resRes.json());
-                
-                // Fetch library PDFs
-                const libRes = await fetch(`${apiBase}/library/${userProfile.studentClass}`);
-                if (libRes.ok) setLibraryItems(await libRes.json());
-            } catch (err) {
-                console.error("Failed to fetch HQ content", err);
-            }
-        };
-        
-        fetchContent();
-    }, [isLoggedIn, userProfile]);
+    const handleAskTutor = (ctx: any) => {
+        setTutorEntryContext(ctx);
+        setIsTutorOpen(true);
+    };
+    const handleAskTutorTopic = (topic: string, bullets: string[]) => {
+        setTutorEntryContext({ type: 'topic_question', topic, bullets });
+        setIsTutorOpen(true);
+    };
+
 
     // Global Chat Notification Polling & Duel Syncing
     useEffect(() => {
@@ -145,7 +128,7 @@ export default function DashboardPage() {
 
     // Arena Polling
     useEffect(() => {
-        if (!shareCode || view !== 'duel') return;
+        if (!shareCode || view !== 'arena') return;
 
         const pollArena = async () => {
             try {
@@ -177,72 +160,36 @@ export default function DashboardPage() {
         }
     }, [view, shareCode]);
 
+    // Load displayName/avatarId from UserContext
     useEffect(() => {
-        const sharedData = decodeStudyPack();
-        if (sharedData) {
-            setSummary(sharedData.s || []);
-            setQuiz(sharedData.q || []);
-            setKeyTerms(sharedData.k || []);
-            setIsSharedView(true);
-            setActiveTab("summary");
-            // Clear hash after loading to prevent reuse issues but keep state
-            if (typeof window !== 'undefined') window.location.hash = "";
-        } else if (!isLoggedIn) {
-            const saved = typeof window !== 'undefined' ? localStorage.getItem('bodh_auth') : null;
-            if (saved !== 'true') {
-                router.push('/auth');
-            }
-        }
-    }, [isLoggedIn, router]);
+        if (userName) setDisplayName(userName);
+        if (savedAvatarId) setAvatarId(savedAvatarId);
+    }, [userName, savedAvatarId]);
 
-    // Fetch History
-    const { userId } = useAuth();
+    // Show profile overlay on first visit
     useEffect(() => {
-        if (isLoggedIn && userId) {
-            fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/history/${userId}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (Array.isArray(data)) setHistory(data);
-                    else setHistory([]);
-                })
-                .catch(err => {
-                    console.error("History Load Error:", err);
-                    setHistory([]);
-                });
-        }
-    }, [isLoggedIn, userId]);
+        if (!hasProfile) setShowProfileOverlay(true);
+    }, [hasProfile]);
 
-    // Load saved settings from localStorage - Keyed by user to prevent name bleed
+    // Fetch history from backend using localStorage codes
     useEffect(() => {
-        if (!userName) return;
-        const userPrefsKey = `bodh_prefs_${userName}`;
-        const savedPrefs = JSON.parse(localStorage.getItem(userPrefsKey) || '{}');
-        
-        setDisplayName(savedPrefs.displayName || userName || '');
-        setPrefLanguage(savedPrefs.language || 'English');
-    }, [userName]);
+        if (historyCodes.length === 0) { setHistory([]); return; }
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+        const cleanUrl = apiUrl.endsWith('/api') ? apiUrl : `${apiUrl}/api`;
+        fetch(`${cleanUrl.replace('/api','')}/api/history?codes=${historyCodes.join(',')}`)
+            .then(res => res.json())
+            .then(data => { if (Array.isArray(data)) setHistory(data); })
+            .catch(() => {});
+    }, [historyCodes]);
 
-    // Show guide on first ever login
-    useEffect(() => {
-        if (isLoggedIn) {
-            const seen = localStorage.getItem('bodh_guide_seen');
-            if (!seen) setShowGuide(true);
-        }
-    }, [isLoggedIn]);
-
+    // Show guide on first pack generation
     const dismissGuide = () => {
         setShowGuide(false);
         localStorage.setItem('bodh_guide_seen', 'true');
     };
 
     const saveSettings = () => {
-        if (!userName) return;
-        const userPrefsKey = `bodh_prefs_${userName}`;
-        const prefs = {
-            displayName,
-            language: prefLanguage
-        };
-        localStorage.setItem(userPrefsKey, JSON.stringify(prefs));
+        setProfile({ displayName, avatarId });
         setLanguage(prefLanguage);
         setSettingsSaved(true);
         setTimeout(() => setSettingsSaved(false), 2500);
@@ -294,7 +241,7 @@ export default function DashboardPage() {
         }
     };
 
-    const handleArenaCreateOrJoin = async (action: 'create' | 'join', codeToJoin?: string, mode: 'duel' | 'fourway' = 'duel') => {
+    const handleArenaCreateOrJoin = async (action: 'create' | 'join', codeToJoin?: string, mode: 'duel' | 'fourway' = 'duel', guestName?: string, guestAvatar?: string) => {
         setIsLoading(true);
         setChatError(null);
         try {
@@ -308,11 +255,12 @@ export default function DashboardPage() {
                 const res = await fetch(`${cleanUrl}/api/packs/share`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ pack: { summary, quiz, key_terms: keyTerms }, userId: userName })
+                    body: JSON.stringify({ pack: { summary, quiz, key_terms: keyTerms }, userId: userName || "Anonymous" })
                 });
                 const data = await res.json();
                 if (res.ok) {
                     currentCode = data.code;
+                    addHistoryCode(currentCode as string);
                 } else {
                     throw new Error("Failed to create pack share");
                 }
@@ -325,15 +273,25 @@ export default function DashboardPage() {
                 setKeyTerms(data.key_terms || []);
             }
 
+            const finalName = guestName || displayName || userName || "Anonymous";
+            const finalAvatar = guestAvatar || avatarId || "A1";
+
             const arenaRes = await fetch(`${cleanUrl}/api/arena/${currentCode}/join`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user: displayName || userName || "Anonymous", mode })
+                body: JSON.stringify({ user: finalName, avatar: finalAvatar, mode })
             });
             const arenaData = await arenaRes.json();
             
             setShareCode(currentCode || null);
             setArenaState(arenaData);
+            
+            // If guest provided name/avatar, save them
+            if (guestName) {
+                setDisplayName(guestName);
+                setAvatarId(guestAvatar || "A1");
+                localStorage.setItem('bodh_guest_prefs', JSON.stringify({ displayName: guestName, avatarId: guestAvatar }));
+            }
             
         } catch (err: any) {
             setChatError(err.message || 'Failed to enter arena.');
@@ -366,6 +324,50 @@ export default function DashboardPage() {
                 body: JSON.stringify({ user: displayName || userName || "Anonymous", isCorrect })
             });
         } catch (e) {}
+    };
+
+    const handleStartArenaGeneration = async (sourceContent: string, diff: string, n: number) => {
+        if (!activeArenaSetup) return;
+        setIsLoading(true);
+        try {
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+            
+            // 1. Generate
+            const genRes = await fetch(`${apiUrl}/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: sourceContent, difficulty: diff, n_questions: n, language })
+            });
+            const genData = await genRes.json();
+            if (!genRes.ok) throw new Error(genData.error || "Generation failed.");
+
+            // Update local state (optional but good for context)
+            setSummary(genData.summary || []);
+            setQuiz(genData.quiz || []);
+            setKeyTerms(genData.key_terms || []);
+            
+            // 2. Share & Join
+            // We use a temporary flag or just pass data directly to handleArenaCreateOrJoin logic
+            // To keep it simple, I'll update share code and then call join
+            const shareRes = await fetch(`${apiUrl}/packs/share`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pack: genData, userId: userName || "Anonymous" })
+            });
+            const shareData = await shareRes.json();
+            if (!shareRes.ok) throw new Error("Sharing failed.");
+            
+            addHistoryCode(shareData.code);
+            
+            // 3. Join Arena Lobby
+            await handleArenaCreateOrJoin('join', shareData.code, activeArenaSetup);
+            setActiveArenaSetup(null);
+
+        } catch (err: any) {
+            throw err;
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     // Auto-detect Hindi (Devanagari script)
@@ -482,19 +484,16 @@ export default function DashboardPage() {
         setWeakTopics(Array.from(newWeakTopics));
     };
 
-    const handleDownload = () => {
-        generateStudyPackPDF(text.slice(0, 100), summary, quiz, keyTerms);
-    };
+
 
     const handleCopyLink = () => {
-        if (!summary.length && !quiz.length) return;
-        const url = encodeStudyPack(summary, quiz, keyTerms);
-        navigator.clipboard.writeText(url);
-    };
-
-    const handleLogout = () => {
-        logout();
-        router.push('/');
+        if (shareCode) {
+            const joinUrl = `${window.location.origin}/dashboard?join=${shareCode}`;
+            navigator.clipboard.writeText(joinUrl);
+        } else if (summary.length || quiz.length) {
+            const url = encodeStudyPack(summary, quiz, keyTerms);
+            navigator.clipboard.writeText(url);
+        }
     };
 
     const handleJoinCode = async () => {
@@ -531,6 +530,7 @@ export default function DashboardPage() {
             const data = await res.json();
             if (res.ok) {
                 setShareCode(data.code);
+                addHistoryCode(data.code);
                 // Also update local history list
                 setHistory(prev => [{ id: data.code, summary, quiz, key_terms: keyTerms, createdAt: new Date() }, ...prev]);
             }
@@ -541,6 +541,71 @@ export default function DashboardPage() {
 
     const hasResults = summary.length > 0 || quiz.length > 0 || keyTerms.length > 0;
     const wordCount = text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
+
+    // Profile overlay (first visit)
+    if (showProfileOverlay) return (
+        <div className="min-h-screen flex items-center justify-center bg-[#0a0a0b] px-4" style={{ fontFamily: 'Outfit, sans-serif' }}>
+            <div className="w-full max-w-md animate-in fade-in slide-in-from-bottom-8 duration-700">
+                <div className="text-center mb-10">
+                    <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 border border-white/10 flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-violet-500/10">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" className="w-10 h-10">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M20.24 12.24a5 5 0 00-8.49-4.8 5 5 0 00-8.49 4.8 5 5 0 008.49 4.8 5 5 0 008.49-4.8z" />
+                        </svg>
+                    </div>
+                    <h1 className="font-playfair italic text-4xl text-white/90 mb-2">Welcome to Bodh</h1>
+                    <p className="text-stone-500 text-sm">No sign-up needed. Just tell us what to call you.</p>
+                </div>
+
+                <div className="bg-white/[0.03] border border-white/10 p-8 rounded-[32px] backdrop-blur-xl space-y-8">
+                    <div>
+                        <label className="block text-[10px] uppercase tracking-widest text-white/30 font-bold mb-3">Your Battle Name</label>
+                        <input
+                            type="text"
+                            value={overlayName}
+                            onChange={e => setOverlayName(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter' && overlayName.trim()) { setProfile({ displayName: overlayName.trim(), avatarId: overlayAvatar }); setDisplayName(overlayName.trim()); setAvatarId(overlayAvatar); setShowProfileOverlay(false); }}}
+                            placeholder="e.g. Brainiac"
+                            maxLength={18}
+                            autoFocus
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white placeholder:text-white/15 focus:border-violet-500/50 outline-none transition-all text-sm"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-[10px] uppercase tracking-widest text-white/30 font-bold mb-4">Pick Your Avatar</label>
+                        <div className="grid grid-cols-4 gap-3">
+                            {['A1','A2','A3','A4','A5','A6','A7','A8'].map(id => (
+                                <button
+                                    key={id}
+                                    onClick={() => setOverlayAvatar(id)}
+                                    className={`aspect-square rounded-2xl flex items-center justify-center text-2xl transition-all duration-300 border-2 ${
+                                        overlayAvatar === id
+                                            ? 'border-violet-500 bg-violet-500/20 scale-110 shadow-lg shadow-violet-500/30'
+                                            : 'border-white/10 bg-white/5 hover:border-white/30'
+                                    }`}
+                                >
+                                    {['🦁','🦊','🐺','🦅','🐉','🦋','🌙','⚡'][['A1','A2','A3','A4','A5','A6','A7','A8'].indexOf(id)]}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <button
+                        disabled={!overlayName.trim()}
+                        onClick={() => {
+                            setProfile({ displayName: overlayName.trim(), avatarId: overlayAvatar });
+                            setDisplayName(overlayName.trim());
+                            setAvatarId(overlayAvatar);
+                            setShowProfileOverlay(false);
+                        }}
+                        className="w-full py-4 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold text-sm tracking-widest uppercase disabled:opacity-30 hover:shadow-[0_0_30px_rgba(139,92,246,0.4)] transition-all duration-500"
+                    >
+                        Enter Bodh →
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
 
     return (
         <>  
@@ -565,24 +630,29 @@ export default function DashboardPage() {
                     </div>
                 </div>
                 
-                <button id="tour-hq" onClick={() => setView('hq')} className={`sidebar-icon-pill ${view === 'hq' ? 'active' : ''}`} title="HQ"><GraduationCap size={20} /></button>
-                <button id="tour-library" onClick={() => setView('library')} className={`sidebar-icon-pill ${view === 'library' ? 'active' : ''}`} title="Library"><Library size={20} /></button>
-                <button id="tour-home" onClick={() => setView('engine')} className={`sidebar-icon-pill ${view === 'engine' ? 'active' : ''}`} title="Quiz Engine"><Sparkles size={20} /></button>
-                <button id="tour-history" onClick={() => setView('history')} className={`sidebar-icon-pill ${view === 'history' ? 'active' : ''}`} title="History"><History size={20} /></button>
-                <button id="tour-chat" onClick={() => setView('chat')} className={`sidebar-icon-pill ${view === 'chat' ? 'active' : ''}`} title="Team Chat"><MessageSquare size={20} /></button>
-                <button id="tour-duel" onClick={() => setView('duel')} className={`sidebar-icon-pill ${view === 'duel' ? 'active' : ''}`} title="Quiz Duels"><Trophy size={20} /></button>
-                <button id="tour-settings" onClick={() => setView('settings')} className={`sidebar-icon-pill ${view === 'settings' ? 'active' : ''}`} title="Settings"><Settings size={20} /></button>
+                <button id="tour-arena" onClick={() => setView('arena')} className={`sidebar-icon-pill ${view === 'arena' ? 'active' : ''}`} title="Arena">
+                    <Trophy size={20} />
+                </button>
+                <button id="tour-create" onClick={() => setView('create')} className={`sidebar-icon-pill ${view === 'create' ? 'active' : ''}`} title="Create Pack">
+                    <Sparkles size={20} />
+                </button>
+                <button id="tour-history" onClick={() => setView('history')} className={`sidebar-icon-pill ${view === 'history' ? 'active' : ''}`} title="History">
+                    <History size={20} />
+                </button>
+                <button id="tour-chat" onClick={() => setView('chat')} className={`sidebar-icon-pill ${view === 'chat' ? 'active' : ''}`} title="Team Chat">
+                    <MessageSquare size={20} />
+                </button>
+                <button id="tour-settings" onClick={() => setView('settings')} className={`sidebar-icon-pill ${view === 'settings' ? 'active' : ''}`} title="Settings">
+                    <Settings size={20} />
+                </button>
             </aside>
 
-            {/* Mobile Navigation */}
             <div className="mobile-nav">
-                <button id="tour-hq-mobile" onClick={() => setView('hq')} className={`mobile-nav-item ${view === 'hq' ? 'active' : ''}`}><GraduationCap size={20} /></button>
-                <button id="tour-library-mobile" onClick={() => setView('library')} className={`mobile-nav-item ${view === 'library' ? 'active' : ''}`}><Library size={20} /></button>
-                <button id="tour-home-mobile" onClick={() => setView('engine')} className={`mobile-nav-item ${view === 'engine' ? 'active' : ''}`}><Sparkles size={20} /></button>
-                <button id="tour-history-mobile" onClick={() => setView('history')} className={`mobile-nav-item ${view === 'history' ? 'active' : ''}`}><History size={20} /></button>
-                <button id="tour-chat-mobile" onClick={() => setView('chat')} className={`mobile-nav-item ${view === 'chat' ? 'active' : ''}`}><MessageSquare size={20} /></button>
-                <button id="tour-duel-mobile" onClick={() => setView('duel')} className={`mobile-nav-item ${view === 'duel' ? 'active' : ''}`}><Trophy size={20} /></button>
-                <button id="tour-settings-mobile" onClick={() => setView('settings')} className={`mobile-nav-item ${view === 'settings' ? 'active' : ''}`}><Settings size={20} /></button>
+                <button onClick={() => setView('arena')} className={`mobile-nav-item ${view === 'arena' ? 'active' : ''}`}><Trophy size={20} /></button>
+                <button onClick={() => setView('create')} className={`mobile-nav-item ${view === 'create' ? 'active' : ''}`}><Sparkles size={20} /></button>
+                <button onClick={() => setView('history')} className={`mobile-nav-item ${view === 'history' ? 'active' : ''}`}><History size={20} /></button>
+                <button onClick={() => setView('chat')} className={`mobile-nav-item ${view === 'chat' ? 'active' : ''}`}><MessageSquare size={20} /></button>
+                <button onClick={() => setView('settings')} className={`mobile-nav-item ${view === 'settings' ? 'active' : ''}`}><Settings size={20} /></button>
             </div>
 
             {/* Main Content Stage */}
@@ -591,10 +661,14 @@ export default function DashboardPage() {
                 <header className="dash-top-bar">
                     <div className="animate-in fade-in slide-in-from-left-4 duration-700">
                         <h2 className="text-white/30 text-xs font-semibold tracking-widest uppercase mb-1">
-                            {userName ? `Greetings, ${userName}` : "Personal Stage"}
+                            {view === 'arena' && 'Battle Arena'}
+                            {view === 'create' && 'Create Pack'}
+                            {view === 'history' && 'Battle History'}
+                            {view === 'chat' && 'Team Chat'}
+                            {view === 'settings' && 'Settings'}
                         </h2>
                         <h1 className="font-playfair italic text-3xl text-white/90">
-                            {userName ? `Welcome back.` : "Clarity Awaits."}
+                            {displayName ? `Hey, ${displayName} ⚔️` : "Ready to Battle?"}
                         </h1>
                     </div>
                     
@@ -614,173 +688,237 @@ export default function DashboardPage() {
                             <a href="https://github.com" target="_blank" className="btn-metallic">
                                 <span className="opacity-60">Support</span>
                             </a>
-                            <button onClick={handleLogout} className="btn-metallic !border-red-500/20 hover:!bg-red-500/10">
-                                <LogOut size={12} className="text-red-400" />
-                                <span className="text-red-100/40">Sign Out</span>
+                            <button
+                                onClick={() => setShowProfileOverlay(true)}
+                                className="btn-metallic flex items-center gap-2"
+                                title="Change name / avatar"
+                            >
+                                <span className="text-lg">{['🦁','🦊','🐺','🦅','🐉','🦋','🌙','⚡'][['A1','A2','A3','A4','A5','A6','A7','A8'].indexOf(avatarId)] || '🦁'}</span>
+                                <span className="text-white/40 text-xs">{displayName || 'Set Name'}</span>
                             </button>
                         </div>
                     </div>
                 </header>
 
                 <div className="dash-grid overflow-hidden pb-32">
-                    {/* HQ View: Personlized Student Dashboard */}
-                    {view === 'hq' && (
-                        <div className="col-span-12 space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
-                            {/* Profile Header Card */}
-                            <div className="flex flex-col md:flex-row gap-6 items-start justify-between bg-white/[0.02] border border-white/5 p-8 rounded-[32px] backdrop-blur-xl">
-                                <div className="flex gap-6 items-center">
-                                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 border border-white/10 flex items-center justify-center text-3xl shadow-2xl shadow-violet-500/10">
-                                        {userName?.charAt(0) || 'B'}
-                                    </div>
-                                    <div>
-                                        <h2 className="text-3xl font-playfair italic text-white/90">Student HQ</h2>
-                                        <div className="flex flex-wrap gap-2 mt-2">
-                                            <span className="px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-[10px] text-violet-300 font-bold uppercase tracking-widest">
-                                                Class {userProfile?.studentClass}
-                                            </span>
-                                            <span className="px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[10px] text-blue-300 font-bold uppercase tracking-widest">
-                                                {userProfile?.board}
-                                            </span>
-                                            {userProfile?.studentClass > 10 && (
-                                                <span className="px-3 py-1 rounded-full bg-fuchsia-500/10 border border-fuchsia-500/20 text-[10px] text-fuchsia-300 font-bold uppercase tracking-widest">
-                                                    {userProfile?.stream}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="flex gap-4 w-full md:w-auto">
-                                    <button 
-                                        onClick={() => setView('engine')} 
-                                        className="btn-metallic flex-1 md:flex-none !px-8 !py-3 bg-violet-600/10 border-violet-500/30 text-violet-200 hover:bg-violet-600/20 hover:border-violet-400 group relative overflow-hidden"
-                                    >
-                                        <div className="absolute inset-0 bg-gradient-to-r from-violet-500/0 via-white/5 to-violet-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
-                                        <Sparkles size={14} className="mr-2" />
-                                        <span>New Study Pack</span>
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Resume Learning & Ongoing Stats */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="md:col-span-2 dash-card p-8 group hover:border-emerald-500/30 transition-all">
-                                    <div className="flex justify-between items-start mb-6">
-                                        <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-400"><BookOpen size={24} /></div>
-                                        <span className="text-[10px] text-emerald-500/40 font-bold uppercase tracking-widest">Now Reading</span>
-                                    </div>
-                                    <h3 className="text-xl font-medium text-white/90 mb-2 truncate">
-                                        {userProfile?.ongoingBook || "No book selected"}
-                                    </h3>
-                                    <p className="text-stone-500 text-sm mb-8">Continue from where you left off to maintain your streak.</p>
-                                    <button onClick={() => setView('library')} className="text-xs font-bold text-emerald-400 uppercase tracking-widest group-hover:translate-x-1 transition-transform inline-flex items-center gap-2">
-                                        Go to Library <ChevronRight size={14} />
-                                    </button>
-                                </div>
-                                <div className="dash-card p-8 group hover:border-violet-500/30 transition-all">
-                                    <div className="flex justify-between items-start mb-6">
-                                        <div className="p-3 rounded-2xl bg-violet-500/10 text-violet-400"><Video size={24} /></div>
-                                        <span className="text-[10px] text-violet-500/40 font-bold uppercase tracking-widest">Next Lecture</span>
-                                    </div>
-                                    <h3 className="text-lg font-medium text-white/90 mb-6 truncate">
-                                        {userProfile?.ongoingLecture || "Ready to learn?"}
-                                    </h3>
-                                    <div className="p-4 rounded-2xl bg-white/5 border border-white/5 text-[11px] text-white/40 italic">
-                                        Explore curated one-shots and playlists below.
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Curated Resources Section */}
-                            <div className="space-y-6">
-                                <div className="flex items-center justify-between px-2">
-                                    <h3 className="text-2xl font-playfair italic text-white/80">Curated Learning Hub</h3>
-                                    <p className="text-[10px] text-white/20 uppercase tracking-[0.2em]">Based on Class {userProfile?.studentClass}</p>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {resources.map((res: any, idx: number) => (
-                                        <div key={idx} className="dash-card p-0 overflow-hidden group hover:border-white/20 transition-all bg-white/[0.02]">
-                                            <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
-                                                <h4 className="text-sm font-bold text-white/60 tracking-wide">{res.category}</h4>
-                                                <ExternalLink size={14} className="text-white/20 group-hover:text-white/60 transition-colors" />
-                                            </div>
-                                            <div className="p-6 space-y-4">
-                                                {res.channels.map((chan: string, cIdx: number) => (
-                                                    <a key={cIdx} 
-                                                       href={`https://www.youtube.com/results?search_query=${encodeURIComponent(chan)}`}
-                                                       target="_blank"
-                                                       className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-all text-sm text-white/40 hover:text-white/90 group/item"
-                                                    >
-                                                        <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500 group-hover/item:bg-red-500/20 transition-all">
-                                                            <Video size={14} />
-                                                        </div>
-                                                        <span className="flex-1 font-medium">{chan}</span>
-                                                        <ChevronRight size={12} className="opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                                                    </a>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Library View: Book Repository */}
-                    {view === 'library' && (
-                        <div className="col-span-12 space-y-8 animate-in fade-in slide-in-from-right-4 duration-700">
-                             <div className="flex items-center justify-between px-2">
+                    {/* Arena View */}
+                    {view === 'arena' && (
+                        <div className="col-span-12 space-y-6 animate-in fade-in slide-in-from-right-4 duration-700">
+                            <div className="flex items-center justify-between px-2">
                                 <div>
-                                    <h2 className="font-playfair italic text-3xl text-white/90">Curated Library</h2>
-                                    <p className="text-stone-600 text-xs mt-1">Free access to NCERT and standard reference materials.</p>
+                                    <h2 className="font-playfair italic text-3xl text-white/90">Duel Arena</h2>
+                                    <p className="text-stone-600 text-xs mt-1">Challenge others and track your competitive rankings.</p>
                                 </div>
-                                <div className="flex gap-2">
-                                    <span className="px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-400 font-bold uppercase tracking-widest">
-                                        {libraryItems.length} Books Found
-                                    </span>
-                                </div>
+                                {shareCode && arenaState && <span className="font-mono text-[10px] text-violet-400/60 border border-violet-500/20 px-4 py-1.5 rounded-full bg-violet-500/5 shadow-inner">Active Lobby: #{shareCode}</span>}
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                                {libraryItems.map((item: any) => (
-                                    <div key={item.id} className="dash-card group p-0 overflow-hidden flex flex-col hover:border-emerald-500/30 transition-all bg-white/[0.02]">
-                                        <div className="h-48 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 flex items-center justify-center border-b border-white/5">
-                                            <FileText size={48} className="text-emerald-500/20 group-hover:scale-110 transition-transform duration-500" />
+                            {!arenaState ? (
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+                                    {/* Create 1v1 Duel Card */}
+                                    <button
+                                        onClick={() => setActiveArenaSetup('duel')}
+                                        disabled={isLoading}
+                                        className="dash-card group text-left hover:border-violet-500/30 transition-all cursor-pointer bg-white/[0.02] flex flex-col gap-6 p-8"
+                                    >
+                                        <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 group-hover:bg-violet-500/20 transition-all group-hover:scale-110 duration-500 shadow-xl shadow-violet-500/5">
+                                            <Trophy size={24} />
                                         </div>
-                                        <div className="p-6 flex-1 flex flex-col justify-between">
-                                            <div>
-                                                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-2 block">{item.subject}</span>
-                                                <h3 className="text-white/90 font-medium mb-1">{item.title}</h3>
-                                                <p className="text-[10px] text-white/20 uppercase font-mono">Class {item.class} • NCERT</p>
-                                            </div>
-                                            <div className="mt-8 flex gap-3">
-                                                <a href={item.url} target="_blank" className="flex-1 p-2.5 rounded-xl bg-white/5 border border-white/10 text-white/40 hover:text-white hover:bg-white/10 text-center transition-all">
-                                                    <ExternalLink size={14} className="mx-auto" />
-                                                </a>
-                                                <button 
-                                                    onClick={() => {
-                                                        if (item.subject === 'Video') {
-                                                            updateProfile({ ongoingLecture: item.title });
-                                                        } else {
-                                                            updateProfile({ ongoingBook: item.title });
+                                        <div>
+                                            <h3 className="text-white/90 font-semibold text-lg mb-1.5 group-hover:text-white transition-colors">1v1 Duel</h3>
+                                            <p className="text-stone-500 text-sm leading-relaxed">
+                                                Challenge a friend head-to-head. Select from Bodh Library or upload your own chapter.
+                                            </p>
+                                        </div>
+                                        <div className="mt-auto flex items-center gap-2 text-violet-400 font-bold text-[10px] uppercase tracking-[0.2em] group-hover:translate-x-1 transition-all">
+                                            Start Duel <ChevronRight size={12} />
+                                        </div>
+                                    </button>
+
+                                    {/* Create 4-Way Clash Card */}
+                                    <button
+                                        onClick={() => setActiveArenaSetup('fourway')}
+                                        disabled={isLoading}
+                                        className="dash-card group text-left hover:border-orange-500/30 transition-all cursor-pointer bg-white/[0.02] border-orange-500/10 flex flex-col gap-6 p-8"
+                                    >
+                                        <div className="w-14 h-14 rounded-2xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400 group-hover:bg-orange-500/20 transition-all group-hover:scale-110 duration-500 shadow-xl shadow-orange-500/5">
+                                            <Users size={24} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-white/90 font-semibold text-lg mb-1.5 group-hover:text-white transition-colors">4-Way Clash</h3>
+                                            <p className="text-stone-500 text-sm leading-relaxed">
+                                                Host a four-player battle royale. Pick any available chapter to begin.
+                                            </p>
+                                        </div>
+                                        <div className="mt-auto flex items-center gap-2 text-orange-400 font-bold text-[10px] uppercase tracking-[0.2em] group-hover:translate-x-1 transition-all">
+                                            Host Clash <ChevronRight size={12} />
+                                        </div>
+                                    </button>
+
+
+                                    {/* Join Arena Card */}
+                                    <div className="dash-card bg-white/[0.02] border-teal-500/10 flex flex-col gap-6 p-8 relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+                                        <div className="w-14 h-14 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400">
+                                            <Zap size={24} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-white/90 font-semibold text-lg mb-1.5">Join Arena</h3>
+                                            <p className="text-stone-500 text-sm leading-relaxed">
+                                                Have a code? Enter it below to join a live arena.
+                                            </p>
+                                        </div>
+                                        <div className="mt-auto space-y-3">
+                                            <div className="flex gap-3">
+                                                <input 
+                                                    type="text" 
+                                                    maxLength={6}
+                                                    value={joinCode}
+                                                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' && joinCode.length >= 4) {
+                                                            handleArenaCreateOrJoin('join', joinCode);
                                                         }
                                                     }}
-                                                    className={`flex-[3] text-[10px] font-bold uppercase tracking-widest border transition-all p-2.5 rounded-xl ${
-                                                        item.subject === 'Video' 
-                                                            ? 'border-violet-500/20 text-violet-400 hover:bg-violet-500/10' 
-                                                            : 'border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10'
-                                                    }`}
+                                                    placeholder="CODE"
+                                                    className="flex-1 bg-white/[0.05] border border-white/10 rounded-2xl px-4 py-3.5 text-white font-mono text-sm outline-none focus:border-teal-500/50 transition-colors uppercase tracking-[0.3em] placeholder:tracking-widest"
+                                                />
+                                                <button 
+                                                    onClick={() => handleArenaCreateOrJoin('join', joinCode)}
+                                                    disabled={isLoading || joinCode.length < 4}
+                                                    className="px-5 py-3.5 rounded-2xl bg-teal-600/20 border border-teal-500/30 text-teal-300 text-xs font-bold hover:bg-teal-600/40 hover:border-teal-500/50 transition-all disabled:opacity-30 flex items-center justify-center min-w-[80px]"
                                                 >
-                                                    Select {item.subject === 'Video' ? 'Lecture' : 'Book'}
+                                                    {isLoading ? <Sparkles size={16} className="animate-spin" /> : 'JOIN'}
                                                 </button>
                                             </div>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
+                                </div>
+                            ) : (
+                                arenaState.status === 'playing' || arenaState.status === 'finished' ? (
+                                    <ArenaQuiz 
+                                        arenaState={arenaState}
+                                        currentUser={displayName || userName || "Anonymous"}
+                                        onAnswer={handleArenaAnswer}
+                                        onLeave={() => { setArenaState(null); setShareCode(null); }}
+                                    />
+                                ) : (
+                                    <ArenaLobby 
+                                        code={shareCode || ""}
+                                        participants={arenaState.participants}
+                                        currentUser={displayName || userName || "Anonymous"}
+                                        onReady={handleArenaReady}
+                                        onJoin={(name, avatar) => handleArenaCreateOrJoin('join', shareCode || "", arenaState.mode, name, avatar)}
+                                        isLoading={isLoading}
+                                    />
+                                )
+                            )}
                         </div>
                     )}
 
-                    {/* Secondary Views: History and Settings */}
+                    {/* Create Pack View */}
+                    {view === 'create' && (
+                        <>
+                            {/* Input Panel */}
+                            <div id="tour-home" className="col-span-12 xl:col-span-5 flex flex-col gap-4 min-h-[400px]">
+                                <div id="tour-input" className="dash-card flex-1 flex flex-col">
+                                     <div className="flex items-center justify-between mb-6 opacity-40">
+                                            <div className="flex gap-2">
+                                                <div className="p-1.5 rounded-full bg-white/5 text-white/40"><FileText size={14} /></div>
+                                                <div className="p-1.5 rounded-full border border-violet-500/20 text-violet-400/80 shadow-[0_0_10px_rgba(139,92,246,0.1)]"><Sparkles size={14} /></div>
+                                            </div>
+                                     </div>
+                                     <InputPanel text={text} setText={setText} onClear={() => { setText(""); setSummary([]); setQuiz([]); setKeyTerms([]); }} />
+                                     {error && <div className="mt-4 text-red-400 text-xs">{error}</div>}
+                                </div>
+                                
+                                <div id="tour-config" className="dash-card">
+                                     <div className="flex flex-col gap-6">
+                                         <div className="space-y-3">
+                                            <label className="text-[10px] uppercase tracking-widest text-white/20 font-bold px-1">Complexity</label>
+                                            <div className="flex p-1 bg-white/[0.03] rounded-xl border border-white/5">
+                                                {["Easy", "Medium", "Hard"].map(d => (
+                                                    <button key={d} onClick={() => setDifficulty(d)} className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all ${difficulty === d ? 'bg-white/10 text-white shadow-xl' : 'text-white/20 hover:text-white/40'}`}>{d}</button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] uppercase tracking-widest text-white/20 font-bold px-1">Scope (Qns)</label>
+                                            <div className="flex p-1 bg-white/[0.03] rounded-xl border border-white/5">
+                                                {[5, 7, 10, 15].map(n => (
+                                                    <button key={n} onClick={() => setNQuestions(n)} className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all ${nQuestions === n ? 'bg-white/10 text-white shadow-lg' : 'text-white/20 hover:text-white/40'}`}>{n}</button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                     </div>
+                                     <div id="tour-generate" className="mt-8">
+                                         <GenerateButton onGenerate={handleGenerate} isLoading={isLoading} disabled={text.length < 100} />
+                                     </div>
+                                </div>
+                            </div>
+
+                            {/* Main Stage (Results) */}
+                            <div className="col-span-12 xl:col-span-7 flex flex-col pt-0 sm:pt-4" id="assessment-stage">
+                                {!hasResults && (
+                                    <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-white/[0.01] rounded-[32px] border border-dashed border-white/10 min-h-[400px]">
+                                        <div className="w-16 h-16 rounded-3xl bg-violet-500/10 text-violet-400 flex items-center justify-center mb-6 border border-violet-500/20 shadow-lg shadow-violet-500/5">
+                                            <Layers size={24} />
+                                        </div>
+                                        <h3 className="font-playfair italic text-xl text-white/50 mb-2">Workspace Empty</h3>
+                                        <p className="text-[11px] uppercase tracking-[0.2em] font-bold text-white/20">Paste text & generate to begin</p>
+                                    </div>
+                                )}
+                                
+                                {hasResults && (
+                                    <div className="flex flex-col h-full space-y-6">
+                                        <SummaryPanel summary={summary} isLoading={isLoading} />
+                                        
+                                        {/* Activity Tabs */}
+                                        <div className="flex items-center gap-2 mb-2 p-1.5 bg-white/[0.02] border border-white/5 rounded-2xl sm:rounded-[20px] backdrop-blur-xl">
+                                            <button 
+                                                onClick={() => setActiveTab('quiz')} 
+                                                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl sm:rounded-2xl text-[11px] sm:text-[13px] font-bold tracking-wide transition-all duration-300 border
+                                                    ${activeTab === 'quiz' 
+                                                        ? 'bg-indigo-600/20 text-indigo-100 border-indigo-500/50 shadow-[0_0_20px_rgba(99,102,241,0.3)] scale-[1.02]' 
+                                                        : 'bg-indigo-900/10 text-indigo-300/80 border-indigo-500/20 hover:text-white hover:bg-indigo-600/20 hover:border-indigo-400/40 hover:scale-[1.02]'}`}
+                                            >
+                                                <ShieldCheck size={14} className={activeTab === 'quiz' ? 'text-indigo-300' : 'text-indigo-400/60'} />
+                                                Self-Quiz
+                                            </button>
+                                            <button 
+                                                onClick={() => setActiveTab('terms')} 
+                                                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl sm:rounded-2xl text-[11px] sm:text-[13px] font-bold tracking-wide transition-all duration-300 border
+                                                    ${activeTab === 'terms' 
+                                                        ? 'bg-teal-600/20 text-teal-100 border-teal-500/50 shadow-[0_0_20px_rgba(20,184,166,0.3)] scale-[1.02]' 
+                                                        : 'bg-teal-900/10 text-teal-300/80 border-teal-500/20 hover:text-white hover:bg-teal-600/20 hover:border-teal-400/40 hover:scale-[1.02]'}`}
+                                            >
+                                                <Layers size={14} className={activeTab === 'terms' ? 'text-teal-300' : 'text-teal-400/60'} />
+                                                Flashcards
+                                            </button>
+                                        </div>
+                                        
+                                        <div className="min-h-[300px]">
+                                            {activeTab === "quiz" && (
+                                                <QuizPanel 
+                                                    quiz={quiz} 
+                                                    isLoading={isLoading} 
+                                                    onRegenerate={handleRegenerateQuestion}
+                                                    isRegenerating={isRegenerating}
+                                                    onFinishDuel={handleFinishDuel}
+                                                    duelResults={duelResults}
+                                                    onAskTutor={handleAskTutor}
+                                                    onCompleteWithResults={handleQuizResults}
+                                                    shareCode={shareCode || undefined}
+                                                />
+                                            )}
+                                            {activeTab === "terms" && <FlashcardsPanel keyTerms={keyTerms} isLoading={isLoading} />}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
+
+                    {/* History View */}
                     {view === 'history' && (
                         <div className="col-span-12 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
                             <div className="flex items-center justify-between mb-2 px-2">
@@ -803,8 +941,8 @@ export default function DashboardPage() {
                                             setQuiz(h.quiz);
                                             setKeyTerms(h.key_terms);
                                             setShareCode(h.id);
-                                            setView('engine');
-                                            setActiveTab('summary');
+                                            setView('create'); // Go to create view to see results
+                                            setActiveTab('quiz');
                                         }}>
                                             <div>
                                                 <div className="flex justify-between items-start mb-6">
@@ -814,13 +952,9 @@ export default function DashboardPage() {
                                                         <button 
                                                             onClick={async (e) => {
                                                                 e.stopPropagation();
-                                                                if (window.confirm("Are you sure you want to delete this pack?")) {
-                                                                    try {
-                                                                        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-                                                                        const cleanUrl = apiUrl.endsWith('/api') ? apiUrl.replace('/api', '') : apiUrl;
-                                                                        await fetch(`${cleanUrl}/api/history/${userName}/${h.id}`, { method: 'DELETE' });
-                                                                        setHistory(prev => prev.filter(p => p.id !== h.id));
-                                                                    } catch (err) { }
+                                                                if (window.confirm("Delete this pack from history?")) {
+                                                                    removeHistoryCode(h.id || h.code);
+                                                                    setHistory(prev => prev.filter(p => (p.id || p.code) !== (h.id || h.code)));
                                                                 }
                                                             }}
                                                             className="text-white/20 hover:text-red-400 transition-colors bg-white/5 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 backdrop-blur-sm z-10 hover:bg-red-500/10"
@@ -843,175 +977,6 @@ export default function DashboardPage() {
                         </div>
                     )}
 
-                    {view === 'duel' && (
-                        <div className="col-span-12 space-y-6 animate-in fade-in slide-in-from-right-4 duration-700">
-                             <div className="flex items-center justify-between px-2">
-                                <div>
-                                    <h2 className="font-playfair italic text-3xl text-white/90">Duel Arena</h2>
-                                    <p className="text-stone-600 text-xs mt-1">Challenge others and track your competitive rankings.</p>
-                                </div>
-                                {shareCode && arenaState && <span className="font-mono text-[10px] text-violet-400/60 border border-violet-500/20 px-4 py-1.5 rounded-full bg-violet-500/5 shadow-inner">Active Lobby: #{shareCode}</span>}
-                            </div>
-
-                            {!arenaState ? (
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-                                    {/* Create 1v1 Duel Card */}
-                                    <button
-                                        onClick={() => handleArenaCreateOrJoin('create', undefined, 'duel')}
-                                        disabled={isLoading || !hasResults}
-                                        className="dash-card group text-left hover:border-violet-500/30 transition-all cursor-pointer bg-white/[0.02] flex flex-col gap-6 p-8"
-                                    >
-                                        <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 group-hover:bg-violet-500/20 transition-all group-hover:scale-110 duration-500 shadow-xl shadow-violet-500/5">
-                                            <Trophy size={24} />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-white/90 font-semibold text-lg mb-1.5 group-hover:text-white transition-colors">1v1 Duel</h3>
-                                            <p className="text-stone-500 text-sm leading-relaxed">
-                                                {hasResults 
-                                                    ? 'Challenge a friend head-to-head from your current study pack.' 
-                                                    : 'Generate a study pack first to start a duel.'}
-                                            </p>
-                                        </div>
-                                        <div className="mt-auto flex items-center gap-2 text-violet-400 font-bold text-[10px] uppercase tracking-[0.2em] group-hover:translate-x-1 transition-all">
-                                            {hasResults ? 'Start Duel' : 'Build Pack First'} <ChevronRight size={12} />
-                                        </div>
-                                    </button>
-
-                                    {/* Create 4-Way Clash Card */}
-                                    <button
-                                        onClick={() => handleArenaCreateOrJoin('create', undefined, 'fourway')}
-                                        disabled={isLoading || !hasResults}
-                                        className="dash-card group text-left hover:border-orange-500/30 transition-all cursor-pointer bg-white/[0.02] border-orange-500/10 flex flex-col gap-6 p-8"
-                                    >
-                                        <div className="w-14 h-14 rounded-2xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400 group-hover:bg-orange-500/20 transition-all group-hover:scale-110 duration-500 shadow-xl shadow-orange-500/5">
-                                            <Users size={24} />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-white/90 font-semibold text-lg mb-1.5 group-hover:text-white transition-colors">4-Way Clash</h3>
-                                            <p className="text-stone-500 text-sm leading-relaxed">
-                                                {hasResults
-                                                    ? 'Host a four-player battle royale. Invite three friends to compete simultaneously.'
-                                                    : 'Generate a study pack first to start a clash.'}
-                                            </p>
-                                        </div>
-                                        <div className="mt-auto flex items-center gap-2 text-orange-400 font-bold text-[10px] uppercase tracking-[0.2em] group-hover:translate-x-1 transition-all">
-                                            {hasResults ? 'Start Clash' : 'Build Pack First'} <ChevronRight size={12} />
-                                        </div>
-                                    </button>
-
-                                    {/* Join Arena Card */}
-                                    <div className="dash-card bg-white/[0.02] border-teal-500/10 flex flex-col gap-6 p-8">
-                                        <div className="w-14 h-14 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 shadow-xl shadow-teal-500/5">
-                                            <Plus size={24} />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-white/90 font-semibold text-lg mb-1.5">Join Arena</h3>
-                                            <p className="text-stone-500 text-sm leading-relaxed">Have a code? Enter it to join any active duel or clash session.</p>
-                                        </div>
-                                        <div className="mt-auto space-y-4">
-                                            <div className="flex gap-3">
-                                                <input
-                                                    type="text"
-                                                    maxLength={6}
-                                                    value={chatJoinInput}
-                                                    onChange={(e) => setChatJoinInput(e.target.value.toUpperCase())}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') handleArenaCreateOrJoin('join', chatJoinInput);
-                                                    }}
-                                                    placeholder="CODE"
-                                                    className="flex-1 bg-white/[0.05] border border-white/10 rounded-2xl px-4 py-3.5 text-white font-mono text-sm outline-none focus:border-teal-500/50 placeholder:text-white/10 tracking-[0.3em] uppercase transition-colors"
-                                                />
-                                                <button
-                                                    onClick={() => handleArenaCreateOrJoin('join', chatJoinInput)}
-                                                    disabled={isLoading || chatJoinInput.length < 4}
-                                                    className="px-6 py-3.5 rounded-2xl bg-teal-600/20 border border-teal-500/30 text-teal-300 text-xs font-bold hover:bg-teal-600/40 hover:border-teal-400 transition-all disabled:opacity-20"
-                                                >
-                                                    {isLoading ? '...' : 'JOIN'}
-                                                </button>
-                                            </div>
-                                            {chatError && <p className="text-red-400/70 text-[11px] font-medium tracking-wide">{chatError}</p>}
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : (
-                                arenaState.status === 'playing' || arenaState.status === 'finished' ? (
-                                    <ArenaQuiz 
-                                        quiz={quiz}
-                                        arenaState={arenaState}
-                                        currentUser={displayName || userName || "Anonymous"}
-                                        onAnswer={handleArenaAnswer}
-                                        onLeave={() => { setArenaState(null); setShareCode(null); }}
-                                    />
-                                ) : (
-                                    <div className="dash-card bg-white/[0.02] border border-white/5 flex flex-col items-center justify-center py-20 mt-8 relative overflow-hidden">
-                                        {arenaState.status === 'countdown' && (
-                                            <div className="absolute inset-0 bg-violet-600/20 flex flex-col items-center justify-center z-10 backdrop-blur-[2px] animate-in fade-in duration-300">
-                                                <span className="text-7xl font-bold font-mono text-white tracking-widest animate-ping">READY</span>
-                                            </div>
-                                        )}
-                                        <div className="flex items-center gap-3 mb-3">
-                                            {arenaState.mode === 'fourway' ? (
-                                                <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-orange-400 bg-orange-500/10 border border-orange-500/20 px-3 py-1 rounded-full">4-Way Clash</span>
-                                            ) : (
-                                                <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 px-3 py-1 rounded-full">1v1 Duel</span>
-                                            )}
-                                        </div>
-                                        <h3 className="text-3xl font-playfair italic text-white/90 mb-3 text-center">Arena Lobby</h3>
-                                        <p className="text-stone-400 text-sm mb-16 text-center">
-                                            {arenaState.mode === 'fourway'
-                                                ? `Waiting for all 4 players to connect and ready up... (${Object.values(arenaState.participants).length}/4)`
-                                                : `Waiting for both players to connect and ready up... (${Object.values(arenaState.participants).length}/2)`}
-                                        </p>
-                                        
-                                        <div className="flex flex-wrap items-center gap-8 w-full max-w-3xl justify-center z-20">
-                                            {/* Joined players */}
-                                            {Object.values(arenaState.participants).map((p: any) => (
-                                                <div key={p.user} className="flex flex-col items-center gap-4">
-                                                    <div className={`w-20 h-20 rounded-3xl border-2 flex items-center justify-center text-3xl font-bold transition-all duration-500 shadow-2xl
-                                                        ${p.isReady ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400 shadow-emerald-500/20 scale-105' : 'border-white/10 bg-white/5 text-white/40 border-dashed'}
-                                                    `}>
-                                                        {p.user.charAt(0).toUpperCase()}
-                                                    </div>
-                                                    <div className="text-center">
-                                                        <p className="text-white/90 font-medium mb-1 text-base">{p.user} {p.user === (displayName || userName || "Anonymous") ? '(You)' : ''}</p>
-                                                        <span className={`text-[10px] uppercase tracking-widest font-bold ${p.isReady ? 'text-emerald-400' : 'text-stone-500'}`}>
-                                                            {p.isReady ? 'READY' : 'Waiting...'}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                            {/* Empty placeholder slots */}
-                                            {Array.from({ length: (arenaState.mode === 'fourway' ? 4 : 2) - Object.values(arenaState.participants).length }).map((_, i) => (
-                                                <div key={`empty-${i}`} className="flex flex-col items-center gap-4">
-                                                    <div className="w-20 h-20 rounded-3xl border-2 border-dashed border-white/10 flex items-center justify-center text-white/20 animate-pulse text-3xl font-light">
-                                                        ?
-                                                    </div>
-                                                    <div className="text-center">
-                                                        <p className="text-white/30 font-medium mb-1 text-base">Open Slot</p>
-                                                        <span className="text-[10px] uppercase tracking-widest font-bold text-stone-600">
-                                                            Code: {shareCode}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        <div className="mt-16 z-20">
-                                            {arenaState.participants[displayName || userName || "Anonymous"]?.isReady ? (
-                                                <button onClick={() => handleArenaReady(false)} className="btn-metallic border-red-500/30 text-red-300/80 hover:bg-red-500/10 px-8">
-                                                    Cancel Ready
-                                                </button>
-                                            ) : (
-                                                <button onClick={() => handleArenaReady(true)} className="btn-metallic bg-emerald-500/10 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/20 hover:border-emerald-400 shadow-xl shadow-emerald-500/10 font-bold px-12 py-3.5 rounded-full text-[13px] tracking-wider uppercase">
-                                                    I am Ready
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                )
-                            )}
-                        </div>
-                    )}
 
                     {view === 'chat' && (
                         <div className="col-span-12 space-y-6 animate-in fade-in slide-in-from-left-4 duration-700">
@@ -1032,56 +997,33 @@ export default function DashboardPage() {
 
                             {chatMode === 'lobby' && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-                                    {/* Create Session Card */}
                                     <button
                                         onClick={handleChatCreate}
-                                        className="dash-card group text-left hover:border-violet-500/30 transition-all cursor-pointer bg-white/[0.02] flex flex-col gap-5 sm:gap-6 p-6 sm:p-10"
+                                        className="dash-card group text-left hover:border-violet-500/30 transition-all cursor-pointer bg-white/[0.02] flex flex-col gap-5 p-6 sm:p-10"
                                     >
                                         <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 group-hover:bg-violet-500/20 transition-all">
                                             <Plus size={24} />
                                         </div>
                                         <div>
                                             <h3 className="text-white/90 font-semibold text-lg mb-2">Create a Session</h3>
-                                            <p className="text-stone-500 text-sm leading-relaxed">
-                                                {hasResults 
-                                                    ? 'Generate a shareable code for your current study pack and invite teammates.' 
-                                                    : 'You need to generate a study pack first before creating a session.'}
-                                            </p>
-                                        </div>
-                                        <div className="mt-auto flex items-center gap-2 text-violet-400/60 text-[10px] font-bold uppercase tracking-widest group-hover:text-violet-400 transition-colors">
-                                            {hasResults ? 'Share Current Pack' : 'Go Build a Pack'} <ChevronRight size={12} />
+                                            <p className="text-stone-500 text-sm leading-relaxed">Share your current pack with teammates.</p>
                                         </div>
                                     </button>
 
-                                    {/* Join Session Card */}
-                                    <div className="dash-card bg-white/[0.02] flex flex-col gap-5 sm:gap-6 p-6 sm:p-10">
+                                    <div className="dash-card bg-white/[0.02] flex flex-col gap-5 p-6 sm:p-10">
                                         <div className="w-14 h-14 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400">
                                             <Users size={24} />
                                         </div>
-                                        <div>
-                                            <h3 className="text-white/90 font-semibold text-lg mb-2">Join a Session</h3>
-                                            <p className="text-stone-500 text-sm leading-relaxed">Enter a 6-character code shared by your teammate to load their study pack and join the discussion.</p>
-                                        </div>
-                                        <div className="mt-auto space-y-4">
-                                            <div className="flex gap-3">
-                                                <input
-                                                    type="text"
-                                                    maxLength={6}
-                                                    value={chatJoinInput}
-                                                    onChange={(e) => setChatJoinInput(e.target.value.toUpperCase())}
-                                                    onKeyDown={(e) => e.key === 'Enter' && handleChatJoin()}
-                                                    placeholder="e.g. BK7X2A"
-                                                    className="flex-1 bg-white/[0.05] border border-white/10 rounded-2xl px-5 py-3 text-white font-mono text-sm outline-none focus:border-teal-500/50 placeholder:text-white/15 tracking-widest uppercase"
-                                                />
-                                                <button
-                                                    onClick={handleChatJoin}
-                                                    disabled={isLoading || chatJoinInput.length < 4}
-                                                    className="px-6 py-3 rounded-2xl bg-teal-600/20 border border-teal-500/30 text-teal-300 text-xs font-bold hover:bg-teal-600/30 transition-all disabled:opacity-30"
-                                                >
-                                                    {isLoading ? '...' : 'Join'}
-                                                </button>
-                                            </div>
-                                            {chatError && <p className="text-red-400/70 text-[11px]">{chatError}</p>}
+                                        <div className="mt-auto space-y-3">
+                                            <input
+                                                type="text"
+                                                maxLength={6}
+                                                value={chatJoinInput}
+                                                onChange={(e) => setChatJoinInput(e.target.value.toUpperCase())}
+                                                placeholder="CODE"
+                                                className="w-full bg-white/[0.05] border border-white/10 rounded-2xl px-5 py-3 text-white font-mono text-sm outline-none"
+                                            />
+                                            <button onClick={handleChatJoin} className="w-full py-3 rounded-2xl bg-teal-600/20 text-teal-300 font-bold text-xs">Join Session</button>
                                         </div>
                                     </div>
                                 </div>
@@ -1097,250 +1039,29 @@ export default function DashboardPage() {
                         <div className="col-span-12 max-w-2xl mx-auto w-full space-y-6 animate-in fade-in slide-in-from-top-4 duration-700">
                             <div className="text-center mb-10">
                                 <h2 className="font-playfair italic text-3xl text-white/90 mb-2">Workspace Configuration</h2>
-                                <p className="text-stone-500 text-sm italic">Your preferences are saved locally. </p>
+                                <p className="text-stone-500 text-sm italic">Preferences are saved locally.</p>
                             </div>
 
                             {/* Display Name */}
-                            <div className="dash-card p-8 border border-white/5 bg-white/[0.02] hover:border-violet-500/20 transition-all">
+                            <div className="dash-card p-8 border border-white/5 bg-white/[0.02]">
                                 <h4 className="text-white/50 text-[10px] font-bold uppercase tracking-[0.2em] mb-5">Display Name</h4>
-                                <div className="flex gap-4">
-                                    <input
-                                        type="text"
-                                        value={displayName}
-                                        onChange={(e) => setDisplayName(e.target.value)}
-                                        placeholder={userName || 'Enter your display name'}
-                                        className="flex-1 bg-white/[0.04] border border-white/10 rounded-2xl px-5 py-3 text-white text-sm outline-none focus:border-violet-500/50 placeholder:text-white/15"
-                                    />
-                                </div>
+                                <input
+                                    type="text"
+                                    value={displayName}
+                                    onChange={(e) => setDisplayName(e.target.value)}
+                                    className="w-full bg-white/[0.04] border border-white/10 rounded-2xl px-5 py-3 text-white text-sm outline-none"
+                                />
                             </div>
 
-                            {/* Default Language */}
-                            <div className="dash-card p-8 border border-white/5 bg-white/[0.02] hover:border-violet-500/20 transition-all">
-                                <h4 className="text-white/50 text-[10px] font-bold uppercase tracking-[0.2em] mb-5">Default Generation Language</h4>
-                                <div className="flex p-1.5 bg-white/[0.03] rounded-2xl border border-white/5">
-                                    {['English', 'Hindi'].map(l => (
-                                        <button key={l} onClick={() => setPrefLanguage(l)} className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all ${
-                                            prefLanguage === l ? 'bg-violet-600/20 text-violet-200 border border-violet-500/40 shadow-[0_0_16px_rgba(139,92,246,0.15)]' : 'text-white/30 hover:text-white/60'
-                                        }`}>{l}</button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Account Info */}
-                            <div className="dash-card p-8 border border-white/5 bg-white/[0.01]">
-                                <h4 className="text-white/50 text-[10px] font-bold uppercase tracking-[0.2em] mb-5">Account</h4>
-                                <div className="space-y-4">
-                                    <div className="flex justify-between text-sm py-3 border-b border-white/5">
-                                        <span className="text-white/40">Username</span>
-                                        <span className="text-white/80 font-medium">{userName || '—'}</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm py-3 border-b border-white/5">
-                                        <span className="text-white/40">Packs Generated</span>
-                                        <span className="text-violet-400/80 font-medium">{history.length}</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm py-3">
-                                        <span className="text-white/40">Synthesis Quota</span>
-                                        <span className="text-emerald-400/80">Premium • Unlimited</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Onboarding re-trigger */}
-                            <div className="dash-card p-8 border border-white/5 bg-white/[0.01] flex items-center justify-between">
-                                <div>
-                                    <h4 className="text-white/50 text-[10px] font-bold uppercase tracking-[0.2em] mb-1">Platform Guide</h4>
-                                    <p className="text-stone-600 text-xs">Replay the onboarding walkthrough at any time.</p>
-                                </div>
-                                <button onClick={() => { setGuideStep(0); setShowGuide(true); }} className="btn-metallic border border-white/10 text-white/40 hover:text-white text-[10px] tracking-widest uppercase">
-                                    Launch Guide
-                                </button>
-                            </div>
-
-                            {/* Save */}
                             <button
                                 onClick={saveSettings}
-                                className={`w-full py-4 rounded-3xl font-bold text-xs tracking-widest uppercase transition-all duration-500 ${
-                                    settingsSaved
-                                        ? 'bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 shadow-[0_0_24px_rgba(16,185,129,0.15)]'
-                                        : 'bg-violet-600/10 border border-violet-500/30 text-violet-300 hover:bg-violet-600/20 shadow-[0_0_16px_rgba(139,92,246,0.1)]'
-                                }`}
+                                className="w-full py-4 rounded-3xl bg-violet-600/10 border border-violet-500/30 text-violet-300 font-bold text-xs uppercase"
                             >
                                 {settingsSaved ? '\u2713 Preferences Saved' : 'Save Configuration'}
                             </button>
                         </div>
                     )}
 
-                    {view === 'engine' && (
-                        <>
-                            {/* Card 1: Primary Workspace (Text Input & Summary Selection) */}
-                            {!hasResults ? (
-                                <>
-                                    <div id="tour-input" className="dash-card col-span-12 lg:col-span-8 flex flex-col min-h-[500px]">
-                                        <div className="flex items-center justify-between mb-8 opacity-40">
-                                            <div className="flex gap-2">
-                                                <div className="p-1.5 rounded-full bg-white/5 text-white/40"><FileText size={14} /></div>
-                                                <div className="p-1.5 rounded-full border border-violet-500/20 text-violet-400/80 shadow-[0_0_10px_rgba(139,92,246,0.1)]"><Sparkles size={14} /></div>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex-1 flex flex-col gap-8">
-                                            <div className="block flex-1">
-                                                <InputPanel text={text} setText={setText} onClear={() => { setText(""); setSummary([]); setQuiz([]); setKeyTerms([]); }} />
-                                            </div>
-                                        </div>
-
-                                        {error && (
-                                            <div className="mt-6 flex items-center gap-3 p-4 rounded-2xl bg-red-500/5 border border-red-500/20 text-red-400 text-sm animate-in shake duration-500">
-                                                <AlertCircle size={18} />
-                                                <span>{error}</span>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Card 2: Configuration Stage */}
-                                    <div id="tour-config" className="dash-card col-span-12 lg:col-span-4 flex flex-col justify-between">
-                                        <div className="space-y-6">
-                                            <div className="flex items-center justify-between opacity-20">
-                                                <div className="p-1 px-3 rounded-full border border-violet-500/20 text-violet-400/80 text-[10px] font-bold uppercase tracking-widest">Configuration</div>
-                                            </div>
-
-                                            {/* Complexity Stage: Efficient Use of Space */}
-                                            <div className="space-y-3">
-                                                <label className="text-[10px] uppercase tracking-widest text-white/20 font-bold px-1">Complexity</label>
-                                                <div className="flex p-1 bg-white/[0.03] rounded-xl border border-white/5">
-                                                    {["Easy", "Medium", "Hard"].map(d => (
-                                                        <button key={d} onClick={() => setDifficulty(d)} className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all ${difficulty === d ? 'bg-white/10 text-white shadow-xl' : 'text-white/20 hover:text-white/40'}`}>{d}</button>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            <div className="space-y-3">
-                                                <label className="text-[10px] uppercase tracking-widest text-white/20 font-bold px-1 flex justify-between items-center">
-                                                    <span>Scope (Qns)</span>
-                                                    <span className="text-violet-500/60 font-mono text-[9px]">{nQuestions} Active</span>
-                                                </label>
-                                                <div className="flex flex-col gap-2">
-                                                    <div className="flex p-1 bg-white/[0.03] rounded-xl border border-white/5">
-                                                        {[5, 7, 10, 15].map(n => (
-                                                            <button key={n} onClick={() => setNQuestions(n)} className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all ${nQuestions === n ? 'bg-white/10 text-white shadow-lg' : 'text-white/20 hover:text-white/40'}`}>{n}</button>
-                                                        ))}
-                                                    </div>
-                                                    <div className="relative group">
-                                                        <input 
-                                                            type="number" 
-                                                            min="1" 
-                                                            max="25"
-                                                            value={nQuestions}
-                                                            onChange={(e) => setNQuestions(parseInt(e.target.value) || 5)}
-                                                            className="w-full bg-white/[0.02] border border-white/5 rounded-xl px-4 py-2 text-[11px] text-white/60 placeholder:text-white/10 focus:outline-none focus:border-violet-500/30 transition-all font-mono"
-                                                            placeholder="Custom (Max 25)..."
-                                                        />
-                                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-bold text-white/10 group-focus-within:text-violet-500/40 uppercase tracking-widest">Custom</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="space-y-3">
-                                                <label className="text-[10px] uppercase tracking-widest text-white/20 font-bold px-1">Dialect</label>
-                                                <div className="flex p-1 bg-white/[0.03] rounded-xl border border-white/5">
-                                                    {["English", "Hindi"].map(l => (
-                                                        <button key={l} onClick={() => setLanguage(l)} className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all ${language === l ? 'bg-white/10 text-white shadow-xl' : 'text-white/20 hover:text-white/40'}`}>{l}</button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div id="tour-generate" className="mt-8">
-                                            <GenerateButton onGenerate={handleGenerate} isLoading={isLoading} disabled={text.length < 100 || wordCount > 8000} />
-                                        </div>
-                                    </div>
-                                </>
-                            ) : (
-                                /* Study Mode: Summary replaces Input section */
-                                <div className="dash-card col-span-12 min-h-[600px] flex flex-col animate-in fade-in duration-1000">
-                                    <div className="flex items-center justify-between mb-10 pb-6 border-b border-white/5">
-                                        <div className="flex items-center gap-4">
-                                            <div className="p-2 rounded-full border border-violet-500/20 text-violet-400 shadow-[0_0_12px_rgba(139,92,246,0.1)]"><FileText size={18} /></div>
-                                            <div>
-                                                <h2 className="text-white/30 text-[10px] font-bold tracking-[0.2em] uppercase">Active Synthesis</h2>
-                                                <h3 className="font-playfair italic text-xl text-white/90">Knowledge Study Pack</h3>
-                                            </div>
-                                        </div>
-                                        <button 
-                                            onClick={() => { setSummary([]); setQuiz([]); setKeyTerms([]); }}
-                                            className="btn-metallic !py-3 !px-6 border border-white/10 hover:border-violet-500/30 transition-all text-[10px] font-bold tracking-widest uppercase"
-                                        >
-                                            <Layers size={12} className="opacity-40" />
-                                            <span>New Synthesis</span>
-                                        </button>
-                                    </div>
-                                    
-                                    <div className="flex-1">
-                                        <SummaryPanel summary={summary} isLoading={isLoading} onAskTutor={handleAskTutorTopic} />
-                                    </div>
-
-                                    <div className="mt-12 pt-8 border-t border-white/5 flex justify-center">
-                                        <button 
-                                            onClick={() => {
-                                                setActiveTab('quiz');
-                                                document.getElementById('assessment-stage')?.scrollIntoView({ behavior: 'smooth' });
-                                            }}
-                                            className="group flex items-center gap-3 transition-all hover:scale-105 active:scale-95 px-8 py-3.5 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 border border-violet-400/30 shadow-[0_10px_40px_rgba(139,92,246,0.2)] hover:shadow-[0_10px_50px_rgba(139,92,246,0.4)] w-full max-w-[320px] justify-center"
-                                        >
-                                            <ListChecks size={18} className="text-white" />
-                                            <span className="text-xs font-bold tracking-[0.1em] uppercase text-white">Proceed to Assessment</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Card 3: Interactive Quiz/Glossary/Team Stage */}
-                            <div id="assessment-stage" className={`dash-card col-span-12 min-h-[400px] transition-all duration-700 ${hasResults ? 'opacity-100 mt-8 !p-4 sm:!p-10' : 'opacity-20 pointer-events-none'}`}>
-                                 <div className="flex flex-wrap items-center justify-between gap-4 mb-6 sm:mb-10">
-                                     <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
-                                        <button 
-                                            onClick={() => setActiveTab('quiz')} 
-                                            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-[11px] sm:text-[13px] font-bold tracking-wide transition-all duration-300 border
-                                                ${activeTab === 'quiz' 
-                                                    ? 'bg-indigo-600/20 text-indigo-100 border-indigo-500/50 shadow-[0_0_20px_rgba(99,102,241,0.3)] scale-[1.02]' 
-                                                    : 'bg-indigo-900/10 text-indigo-300/80 border-indigo-500/20 hover:text-white hover:bg-indigo-600/20 hover:border-indigo-400/40 hover:scale-[1.02]'}`}
-                                        >
-                                            <ShieldCheck size={14} className={activeTab === 'quiz' ? 'text-indigo-300' : 'text-indigo-400/60'} />
-                                            Quiz
-                                        </button>
-                                        <button 
-                                            onClick={() => setActiveTab('terms')} 
-                                            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-[11px] sm:text-[13px] font-bold tracking-wide transition-all duration-300 border
-                                                ${activeTab === 'terms' 
-                                                    ? 'bg-teal-600/20 text-teal-100 border-teal-500/50 shadow-[0_0_20px_rgba(20,184,166,0.3)] scale-[1.02]' 
-                                                    : 'bg-teal-900/10 text-teal-300/80 border-teal-500/20 hover:text-white hover:bg-teal-600/20 hover:border-teal-400/40 hover:scale-[1.02]'}`}
-                                        >
-                                            <Layers size={14} className={activeTab === 'terms' ? 'text-teal-300' : 'text-teal-400/60'} />
-                                            Flashcards
-                                        </button>
-                                     </div>
-                                     <div className="hidden sm:block p-2 rounded-full border border-violet-500/20 text-violet-400 shadow-[0_0_12px_rgba(139,92,246,0.1)]"><ListChecks size={16} /></div>
-                                </div>
-                                
-                                <div className="min-h-[300px]">
-                                    {activeTab === "quiz" && (
-                                        <QuizPanel 
-                                            quiz={quiz} 
-                                            isLoading={isLoading} 
-                                            onRegenerate={handleRegenerateQuestion}
-                                            isRegenerating={isRegenerating}
-                                            onFinishDuel={handleFinishDuel}
-                                            duelResults={duelResults}
-                                            onAskTutor={handleAskTutor}
-                                            onCompleteWithResults={handleQuizResults}
-                                            shareCode={shareCode || undefined}
-                                        />
-                                    )}
-                                    {activeTab === "terms" && <FlashcardsPanel keyTerms={keyTerms} isLoading={isLoading} />}
-                                </div>
-                            </div>
-                        </>
-                    )}
                 </div>
             </main>
 
@@ -1352,8 +1073,8 @@ export default function DashboardPage() {
                             <MessageSquare size={14} />
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-[10px] font-bold tracking-widest uppercase text-violet-300">New Message from {chatToast.user}</span>
-                            <span className="text-sm text-white/90 truncate max-w-[200px]">{chatToast.preview}</span>
+                            <span className="text-[10px] font-bold tracking-widest uppercase text-violet-300">New Message from {chatToast?.user}</span>
+                            <span className="text-sm text-white/90 truncate max-w-[200px]">{chatToast?.preview}</span>
                         </div>
                         <ChevronRight size={16} className="text-white/40 ml-2" />
                     </div>
@@ -1367,74 +1088,39 @@ export default function DashboardPage() {
                 onDone={dismissGuide}
                 steps={[
                     {
-                        targetId: 'tour-hq',
-                        title: 'Student HQ',
-                        body: 'Your personalized destination. Track your class, stream, and board, and see what you need to study next.',
+                        targetId: 'tour-dashboard',
+                        title: 'Duel Arena',
+                        body: 'Welcome to your multiplayer hub. Here you can start 1v1 duels, host 4-way clashes, or join active lobbies.',
                         position: 'right',
-                        onActivate: () => setView('hq'),
-                    },
-                    {
-                        targetId: 'tour-library',
-                        title: 'Digital Library',
-                        body: 'Access all your NCERT books and reference materials in one place. No more hunting for PDFs.',
-                        position: 'right',
-                        onActivate: () => setView('library'),
-                    },
-                    {
-                        targetId: 'tour-home',
-                        title: 'Quiz & Summary Engine',
-                        body: 'The heart of Bodh. Paste your text here to generate custom study packs, quizzes, and summaries.',
-                        position: 'right',
-                        onActivate: () => setView('engine'),
-                    },
-                    {
-                        targetId: 'tour-input',
-                        title: 'Synthesis Engine',
-                        body: 'Paste your study notes or lecture text here, or drag-and-drop a PDF. Bodh extracts and cleans the content automatically.',
-                        position: 'bottom',
-                        onActivate: () => { setView('engine'); setSummary([]); setQuiz([]); setKeyTerms([]); },
-                    },
-                    {
-                        targetId: 'tour-config',
-                        title: 'Configuration Panel',
-                        body: 'Choose your Complexity level, how many quiz Questions to generate, and the output Language before synthesising.',
-                        position: 'left',
-                        onActivate: () => { setView('engine'); setSummary([]); setQuiz([]); setKeyTerms([]); },
-                    },
-                    {
-                        targetId: 'tour-generate',
-                        title: 'Generate Study Pack',
-                        body: 'When you\'re ready, hit Generate. Bodh will produce a full Summary, Self-Quiz, and Glossary in seconds.',
-                        position: 'top',
-                        onActivate: () => { setView('engine'); setSummary([]); setQuiz([]); setKeyTerms([]); },
-                    },
-                    {
-                        targetId: 'assessment-stage',
-                        title: 'Self-Quiz Engine',
-                        body: 'After generation, scroll down here. Start with Confidence Mode — your score determines if you unlock Browse Mode where every answer is revealed with explanations.',
-                        position: 'top',
-                        onActivate: () => setView('engine'),
-                    },
-                    {
-                        targetId: 'tour-chat',
-                        title: 'Team Collaboration',
-                        body: 'Click this icon to open the Team Chat. Create a session to get a shareable code, or enter a teammate\'s code to join their study pack and discuss in real-time.',
-                        position: 'right',
-                        onActivate: () => {},
+                        onActivate: () => setView('arena'),
                     },
                     {
                         targetId: 'tour-history',
-                        title: 'Archive',
-                        body: 'Every study pack you generate is saved here automatically. Click any card to reload it — your notes are never lost.',
+                        title: 'Archived Packs',
+                        body: 'Every study pack you generate is saved here automatically. Click any card to reload it.',
                         position: 'right',
-                        onActivate: () => {},
+                        onActivate: () => setView('history'),
+                    },
+                    {
+                        targetId: 'tour-home',
+                        title: 'Create & Synth Engine',
+                        body: 'Paste your text or notes here to instantly generate custom quiz battle packs.',
+                        position: 'right',
+                        onActivate: () => setView('create'),
+                    },
+                    {
+                        targetId: 'tour-chat',
+                        title: 'Team Chat',
+                        body: 'Click this icon to open the Team Chat and discuss strategies or study notes in real-time.',
+                        position: 'right',
+                        onActivate: () => setView('chat'),
                     },
                     {
                         targetId: 'tour-settings',
-                        title: 'Workspace Settings',
-                        body: 'Set your display name, default language, and review your account stats. Changes are saved locally to your device.',
+                        title: 'Profile Settings',
+                        body: 'Set your display name and choose an avatar to represent you in the Arena.',
                         position: 'right',
-                        onActivate: () => {},
+                        onActivate: () => setView('settings'),
                     },
                 ]}
             />
@@ -1443,69 +1129,13 @@ export default function DashboardPage() {
             {/* All fixed-positioned overlays are OUTSIDE .dash-layout to avoid
                 position:fixed being trapped by overflow-x:hidden / backdrop-filter
                 on the layout container. */}
-            <ExportBar isVisible={hasResults} onDownload={handleDownload} onCopyLink={handleCopyLink} />
-
-            {/* BodhTutorPanel + Floating Bubble */}
-            <BodhTutorPanel 
-                isOpen={isTutorOpen} 
-                onClose={() => setIsTutorOpen(false)} 
-                context={{
-                    summary,
-                    key_terms: keyTerms,
-                    weak_topics: weakTopics,
-                    entry_context: tutorEntryContext
-                }}
-                chatHistory={tutorChatHistory}
-                setChatHistory={setTutorChatHistory}
-                userName={displayName || userName || undefined}
+            <ExportBar isVisible={hasResults} onCopyLink={handleCopyLink} />
+            <ArenaSetupOverlay 
+                isOpen={!!activeArenaSetup} 
+                onClose={() => setActiveArenaSetup(null)}
+                mode={activeArenaSetup || 'duel'}
+                onStartGeneration={handleStartArenaGeneration}
             />
-
-            {/* Floating Tutor Bubble — true viewport-fixed */}
-            {!isTutorOpen && hasResults && (
-                <button 
-                    onClick={() => handleAskTutor({ type: 'open' })}
-                    title="Ask Bodh AI Tutor"
-                    className="tutor-fab group"
-                    style={{
-                        position: 'fixed',
-                        bottom: '96px',
-                        right: '24px',
-                        zIndex: 110,
-                        width: '64px',
-                        height: '64px',
-                        borderRadius: '16px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: 'linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        boxShadow: '0 8px 32px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.2)',
-                        overflow: 'hidden',
-                        cursor: 'pointer',
-                        transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.1)')}
-                    onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
-                    onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.95)')}
-                    onMouseUp={e => (e.currentTarget.style.transform = 'scale(1.1)')}
-                >
-                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(139,92,246,0.1)', filter: 'blur(12px)', transition: 'background 0.5s' }} />
-                    <div style={{ position: 'relative', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Bot size={28} className="text-white/80" />
-                        <div style={{
-                            position: 'absolute',
-                            top: '-4px',
-                            right: '-4px',
-                            width: '14px',
-                            height: '14px',
-                            background: '#10b981',
-                            border: '2px solid #0A0A0B',
-                            borderRadius: '50%',
-                            boxShadow: '0 0 10px #10b981',
-                        }} />
-                    </div>
-                </button>
-            )}
         </>
     );
 }

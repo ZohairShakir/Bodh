@@ -87,11 +87,11 @@ export default function LandingPage() {
                         <span className="badge-pill">New</span>
                         Introducing AI-powered study tools for Indian students.
                     </div>
-                    <h1 className="hero-title r d1">Your Academic Student HQ</h1>
-                    <p className="hero-sub r d2">The all-in-one destination for Class 10, 11, and 12 students. Personalized playlists, a complete NCERT library, and the world's most powerful AI study engine.<br />Built for Board Exams. Optimized for Success.</p>
+                    <h1 className="hero-title r d1">Turn any chapter into a live quiz battle</h1>
+                    <p className="hero-sub r d2">Challenge your friends in real time. Create custom arenas from any topic and see who earns the ultimate clarity.<br />Fast. Fun. No login required.</p>
                     <div className="hero-actions r d3">
-                        <Link href="/auth?mode=signup" className="btn-outline">
-                            Try Bodh Free
+                        <Link href="/dashboard" className="btn-outline">
+                            Start Battle Arena
                             <svg width="10" height="10" viewBox="0 0 11 11" fill="none">
                                 <path d="M1 10L10 1M10 1H3M10 1V8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
@@ -134,10 +134,10 @@ export default function LandingPage() {
                 </div>
                 <div className="how-inner">
                     <div className="s-badge r">Personal Path</div>
-                    <h2 className="s-title r d1">A smarter way to study.</h2>
-                    <p className="s-sub r d2">Enter your class and branch to instantly unlock your personalized Student HQ. From NCERT digital books to curated playlists from India's best educators, Bodh organizes your entire academic life in one seamless dashboard.</p>
-                    <Link href="/auth?mode=signup" className="btn-outline r d3">
-                        Enter Your HQ
+                    <h2 className="s-title r d1">A faster way to clash.</h2>
+                    <p className="s-sub r d2">Enter any topic or paste your notes to instantly generate a competitive arena. Share the room code with friends and battle it out in a real-time leaderboard duel. No distractions, just high-speed academic competition.</p>
+                    <Link href="/dashboard" className="btn-outline r d3">
+                        Create Your Arena
                         <svg width="10" height="10" viewBox="0 0 11 11" fill="none">
                             <path d="M1 10L10 1M10 1H3M10 1V8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
@@ -153,29 +153,29 @@ export default function LandingPage() {
                 <div className="feat-grid">
                     <div className="feat-card r">
                         <div className="feat-text">
-                            <h3>A Personalized Dashboard for Every Student.</h3>
-                            <p>Bodh adapts to you. Your Class, your Board, your Stream. Track what you're reading, what lecture is next, and stay ahead of the curve with a workspace that evolves with your syllabus.</p>
-                            <Link href="/auth?mode=signup" className="btn-outline">
-                                View Your HQ
+                            <h3>Instant Arena Creation.</h3>
+                            <p>Bodh turns any text into a competitive playground. Whether it's a complex biology chapter or a history lecture, get 15 high-quality MCQs in seconds and invite your group to a live duel.</p>
+                            <Link href="/dashboard" className="btn-outline">
+                                Start a Battle
                             </Link>
                         </div>
                         <div className="feat-vis">
                             <div className="mock-ui-box">
                                 <div className="mock-header">
                                     <div className="mock-circle" />
-                                    <div className="mock-title">Student HQ</div>
+                                    <div className="mock-title">Battle Arena</div>
                                 </div>
                                 <div className="mock-body">
                                     <div className="mock-tag-row">
-                                        <div className="mock-tag bg-violet-500/20 text-violet-300">Class 12</div>
-                                        <div className="mock-tag bg-blue-500/20 text-blue-300">CBSE</div>
+                                        <div className="mock-tag bg-violet-500/20 text-violet-300">Live Duel</div>
+                                        <div className="mock-tag bg-blue-500/20 text-blue-300">#BK-42</div>
                                     </div>
                                     <div className="mock-stat-card">
-                                        <div className="mock-label">Now Reading</div>
-                                        <div className="mock-value">NCERT Chemistry Part II</div>
+                                        <div className="mock-label">Winner Rank</div>
+                                        <div className="mock-value">Aarav Mehta - 850 pts</div>
                                     </div>
                                     <div className="mock-bar-container">
-                                        <div className="mock-bar-inner bg-violet-500" style={{ width: '65%' }}></div>
+                                        <div className="mock-bar-inner bg-violet-500" style={{ width: '85%' }}></div>
                                     </div>
                                 </div>
                             </div>
@@ -187,25 +187,25 @@ export default function LandingPage() {
                              <div className="mock-ui-box">
                                 <div className="mock-header" style={{ borderColor: 'rgba(16, 185, 129, 0.2)' }}>
                                     <div className="mock-circle" style={{ background: '#10b981' }} />
-                                    <div className="mock-title" style={{ color: '#10b981' }}>Curated Library</div>
+                                    <div className="mock-title" style={{ color: '#10b981' }}>Live Leaderboard</div>
                                 </div>
                                 <div className="mock-body">
                                     <div className="mock-book-row">
-                                        <div className="mock-book bg-emerald-500/10 border-emerald-500/20">Maths</div>
-                                        <div className="mock-book bg-emerald-500/10 border-emerald-500/20">Physics</div>
+                                        <div className="mock-book bg-emerald-500/10 border-emerald-500/20">Ishe: 120</div>
+                                        <div className="mock-book bg-emerald-500/10 border-emerald-500/20">Rohan: 110</div>
                                     </div>
                                     <div className="mock-book-row">
-                                        <div className="mock-book bg-emerald-500/10 border-emerald-500/20">Biology</div>
-                                        <div className="mock-book bg-emerald-500/10 border-emerald-500/20">English</div>
+                                        <div className="mock-book bg-emerald-500/10 border-emerald-500/20">Sneha: 95</div>
+                                        <div className="mock-book bg-emerald-500/10 border-emerald-500/20">You: 105</div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         <div className="feat-text">
-                            <h3>High-Quality Resources. One Click Away.</h3>
-                            <p>No more hunting for PDFs on sketchy websites. Access a complete, curated library of NCERT books and standardized playlists from top Indian educators—all in one place.</p>
-                            <Link href="/auth?mode=signup" className="btn-outline">
-                                Explore Library
+                            <h3>Real-Time Global Interaction.</h3>
+                            <p>No more studying in isolation. See who is answering fastest, track your rank after every question, and share your victory cards with one click. Speed is just as important as accuracy.</p>
+                            <Link href="/dashboard" className="btn-outline">
+                                Join a Room
                             </Link>
                         </div>
                     </div>
@@ -222,29 +222,29 @@ export default function LandingPage() {
                         <div className="diff-icon-box">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
                         </div>
-                        <h4>Built for Board Exams</h4>
-                        <p>Optimized for CBSE, ICSE, and State Board curriculum for Class 10, 11, and 12.</p>
+                        <h4>Instant Quiz Generation</h4>
+                        <p>Our AI analyzes any text and generates 10–15 competitive MCQs in under 10 seconds.</p>
                     </div>
                     <div className="diff-card r d1">
                         <div className="diff-icon-box">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                         </div>
-                        <h4>Privacy First</h4>
-                        <p>We don't store your notes. Everything is cleaned after your session ends.</p>
+                        <h4>Multiplayer Duels</h4>
+                        <p>Compete in 1v1 or 4-player lobbies. Real-time sync ensures everyone sees the same question.</p>
                     </div>
                     <div className="diff-card r d2">
                         <div className="diff-icon-box">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20M4 19.5V5A2.5 2.5 0 0 1 6.5 2.5H20" /></svg>
                         </div>
-                        <h4>Smart Glossaries</h4>
-                        <p>Automatically extracts technical terms and definitions, building your exam vocabulary instantly.</p>
+                        <h4>Live Leaderboards</h4>
+                        <p>Watch your rank climb in real time. Speed bonuses reward the fastest accurate solvers.</p>
                     </div>
                     <div className="diff-card r d3">
                         <div className="diff-icon-box">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.5 4 6.5 2 2 3 3.5 3 5.5a6.5 6.5 0 1 1-13 0z" /></svg>
                         </div>
-                        <h4>Zero Friction</h4>
-                        <p>Get personalized in seconds. No bloated UI. Just clear, high-speed academic synthesis.</p>
+                        <h4>No Friction</h4>
+                        <p>No login required to join a battle. Just enter your name, pick an avatar, and start clashing.</p>
                     </div>
                 </div>
             </section>
@@ -307,9 +307,9 @@ export default function LandingPage() {
                 </video>
                 <div className="fcta-grad"></div>
                 <div className="fcta-inner">
-                    <h2 className="fcta-title r">Ready to reach clarity?</h2>
-                    <Link href="/auth?mode=signup" className="btn-outline r d1">
-                        Get Started For Free
+                    <h2 className="fcta-title r">Ready to clash?</h2>
+                    <Link href="/dashboard" className="btn-outline r d1">
+                        Create Your First Arena
                         <svg width="10" height="10" viewBox="0 0 11 11" fill="none">
                             <path d="M1 10L10 1M10 1H3M10 1V8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>

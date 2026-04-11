@@ -70,6 +70,7 @@ export default function ArenaQuiz({ arenaState, currentUser, onAnswer, onLeave }
 
                 <div className="w-full max-w-lg space-y-3 mb-10">
                     {sortedPlayers.map((p, idx) => {
+                        if (!p) return null;
                         const av = getAvatarById(p.avatar);
                         return (
                             <div key={p.user} className={`flex items-center justify-between p-5 rounded-[24px] border transition-all duration-500 ${p.user === currentUser ? 'bg-violet-500/10 border-violet-500/30 ring-1 ring-violet-500/20' : 'bg-white/[0.03] border-white/10'}`}>
@@ -150,6 +151,8 @@ export default function ArenaQuiz({ arenaState, currentUser, onAnswer, onLeave }
         return "bg-white/[0.01] border-white/5 text-stone-600 opacity-40 grayscale";
     };
 
+    if (!currentQuestion) return null;
+
     return (
         <div className="max-w-4xl mx-auto w-full animate-in fade-in duration-700">
             {/* GAME HUD */}
@@ -160,6 +163,7 @@ export default function ArenaQuiz({ arenaState, currentUser, onAnswer, onLeave }
                         <Users size={12} /> Live Standing
                     </div>
                     {sortedPlayers.map((p, idx) => {
+                        if (!p) return null;
                         const av = getAvatarById(p.avatar);
                         const isMe = p.user === currentUser;
                         return (
@@ -217,7 +221,7 @@ export default function ArenaQuiz({ arenaState, currentUser, onAnswer, onLeave }
                         </h3>
 
                         <div className="grid grid-cols-1 gap-4">
-                            {currentQuestion.options.map((option: string, idx: number) => {
+                            {(currentQuestion?.options || []).map((option: string, idx: number) => {
                                 const isSelected = selectedOption === idx;
                                 const isCorrectOption = idx === currentQuestion.correct_index;
 

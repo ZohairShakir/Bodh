@@ -5,7 +5,9 @@ export interface IArenaSession extends Document {
   status: 'lobby' | 'countdown' | 'playing' | 'finished';
   mode: 'duel' | 'fourway';
   currentQuestionIndex: number;
-  participants: Map<string, any>;
+  lastQuestionStartTime?: number;
+  participants: Map<string, any>; // { user, avatar, isReady, score, hasAnswered, lastAnswerCorrect }
+  questions: any[]; // Store MCQs directly for faster access
 }
 
 const ArenaSessionSchema: Schema = new Schema({
@@ -13,7 +15,9 @@ const ArenaSessionSchema: Schema = new Schema({
   status: { type: String, enum: ['lobby', 'countdown', 'playing', 'finished'], default: 'lobby' },
   mode: { type: String, enum: ['duel', 'fourway'], default: 'duel' },
   currentQuestionIndex: { type: Number, default: 0 },
-  participants: { type: Map, of: Object, default: {} }
+  lastQuestionStartTime: { type: Number },
+  participants: { type: Map, of: Object, default: {} },
+  questions: { type: Array, default: [] }
 }, { timestamps: true });
 
 export default mongoose.model<IArenaSession>('ArenaSession', ArenaSessionSchema);

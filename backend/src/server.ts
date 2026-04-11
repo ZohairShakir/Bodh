@@ -3,16 +3,10 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
-import nodemailer from 'nodemailer';
-import crypto from 'crypto';
 import JSON5 from 'json5';
-import { OAuth2Client } from 'google-auth-library';
 
 // Models
-import User from './models/User';
 import StudyPack from './models/StudyPack';
 import ChatMessage from './models/ChatMessage';
 import DuelResult from './models/DuelResult';
@@ -22,7 +16,6 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'bodh_local_secret_2024';
 
 // Database Connection
 mongoose.connect(process.env.MONGODB_URI || '')
@@ -30,16 +23,16 @@ mongoose.connect(process.env.MONGODB_URI || '')
     .catch(err => console.error('MongoDB connection error:', err));
 
 app.use(cors({
-  origin: ["https://bodhik.vercel.app", "http://localhost:3000"],
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true,
+    origin: ["https://bodhik.vercel.app", "http://localhost:3000"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
 }));
 app.options("*", cors({
-  origin: ["https://bodhik.vercel.app", "http://localhost:3000"],
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true,
+    origin: ["https://bodhik.vercel.app", "http://localhost:3000"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
 }));
 app.use(express.json());
 
@@ -52,6 +45,34 @@ Always respond with a single valid JSON object matching the schema provided.
 Never include markdown, code fences, or any text outside the JSON object.
 Adapt terminology and examples to be relevant to Indian academic contexts where possible.
 `;
+
+const extractJSONString = (raw: string) => {
+    // Try to find markdown code block first
+    const match = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (match) return match[1].trim();
+
+    // Fallback to finding the outer braces
+    const firstBrace = raw.indexOf('{');
+    const lastBrace = raw.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace >= firstBrace) {
+        return raw.substring(firstBrace, lastBrace + 1);
+    }
+    return raw.trim();
+};
+
+const withRetry = async <T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> => {
+    try {
+        return await fn();
+    } catch (error: any) {
+        const isRetryable = error.status === 429 || error.status === 503 || error.message?.includes('503') || error.message?.includes('429');
+        if (retries > 0 && isRetryable) {
+            console.warn(`AI service busy. Retrying in ${delay}ms... (${retries} left)`);
+            await new Promise(res => setTimeout(res, delay));
+            return withRetry(fn, retries - 1, delay * 2);
+        }
+        throw error;
+    }
+};
 
 const TUTOR_SYSTEM_PROMPT = `
 You are Bodhik, a friendly AI study tutor for Indian college students.
@@ -97,214 +118,6 @@ ${text}
 ---
 `;
 
-// AUTH ENDPOINTS
-app.post('/api/auth/register', async (req: Request, res: Response) => {
-    try {
-        const { email, password, name, studentClass, board, stream } = req.body;
-        if (!email || !password || password.length < 6) {
-            return res.status(400).json({ error: "Email and 6+ char password required." });
-        }
-        const existing = await User.findOne({ email: email.toLowerCase() });
-        if (existing) {
-            return res.status(400).json({ error: "Email already registered." });
-        }
-        const passwordHash = await bcrypt.hash(password, 10);
-        const newUser = new User({ 
-            email: email.toLowerCase(), 
-            passwordHash, 
-            name,
-            studentClass,
-            board,
-            stream
-        });
-        await newUser.save();
-
-        const token = jwt.sign({ id: newUser._id, email: newUser.email, name: newUser.name }, JWT_SECRET, { expiresIn: '7d' });
-        res.status(201).json({ token, name: newUser.name, userId: newUser._id, profile: { studentClass, board, stream } });
-    } catch (err) {
-        res.status(500).json({ error: "Registration failed." });
-    }
-});
-
-app.post('/api/auth/login', async (req: Request, res: Response) => {
-    try {
-        const { email, password } = req.body;
-        const user = await User.findOne({ email: email.toLowerCase() });
-        if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-            return res.status(401).json({ error: "Invalid credentials." });
-        }
-        const token = jwt.sign({ id: user._id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
-        res.json({ 
-            token, 
-            name: user.name, 
-            userId: user._id, 
-            profile: { 
-                studentClass: user.studentClass, 
-                board: user.board, 
-                stream: user.stream,
-                ongoingBook: user.ongoingBook,
-                ongoingLecture: user.ongoingLecture
-            } 
-        });
-    } catch (err) {
-        res.status(500).json({ error: "Login failed." });
-    }
-});
-
-// SOCIAL LOGIN ENDPOINT
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-
-app.post('/api/auth/social-login', async (req: Request, res: Response) => {
-    try {
-        const { provider, credential, email: legacyEmail, name: legacyName, providerId: legacyProviderId } = req.body;
-        
-        if (!provider) return res.status(400).json({ error: "Provider is required." });
-
-        let email = legacyEmail;
-        let name = legacyName;
-        let providerId = legacyProviderId;
-
-        // Verify genuine Google tokens
-        if (provider === 'google') {
-            if (!credential) return res.status(400).json({ error: "Missing Google credential token." });
-            try {
-                // If it's a JWT (ID Token)
-                if (credential.split('.').length === 3) {
-                    const ticket = await client.verifyIdToken({
-                        idToken: credential,
-                        audience: process.env.GOOGLE_CLIENT_ID
-                    });
-                    const payload = ticket.getPayload();
-                    if (!payload || !payload.email) throw new Error("Invalid token payload");
-                    email = payload.email.toLowerCase();
-                    name = payload.name || 'Google User';
-                    providerId = payload.sub;
-                } else {
-                    // It's an Access Token from useGoogleLogin custom button
-                    const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                        headers: { Authorization: `Bearer ${credential}` }
-                    });
-                    if (!response.ok) throw new Error("Failed to fetch user info from Google");
-                    const payload = await response.json();
-                    if (!payload || !payload.email) throw new Error("Invalid access token payload");
-                    email = payload.email.toLowerCase();
-                    name = payload.name || 'Google User';
-                    providerId = payload.sub;
-                }
-            } catch (err: any) {
-                console.error("Google Auth Validation Error:", err);
-                return res.status(401).json({ error: "Invalid Google credential" });
-            }
-        } else {
-            // Keep fallback for Apple/GitHub until implemented
-            if (!email || !providerId) return res.status(400).json({ error: "Email and providerId required." });
-        }
-
-        let user = await User.findOne({ 
-            $or: [
-                { email: email.toLowerCase() },
-                { githubId: provider === 'github' ? providerId : undefined },
-                { appleId: provider === 'apple' ? providerId : undefined }
-            ]
-        });
-
-        if (!user) {
-            // Create new user if not exists
-            const tempPass = crypto.randomBytes(16).toString('hex');
-            const passwordHash = await bcrypt.hash(tempPass, 10);
-            user = new User({ 
-                email: email.toLowerCase(), 
-                name, 
-                passwordHash,
-                githubId: provider === 'github' ? providerId : undefined,
-                appleId: provider === 'apple' ? providerId : undefined
-            });
-            await user.save();
-        } else {
-            // Update provider ID if missing
-            if (provider === 'github' && !user.githubId) user.githubId = providerId;
-            if (provider === 'apple' && !user.appleId) user.appleId = providerId;
-            if (!user.name && name) user.name = name; // sync name if not set
-            await user.save();
-        }
-
-        const token = jwt.sign({ id: user._id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
-        res.json({ 
-            token, 
-            name: user.name, 
-            userId: user._id,
-            profile: { 
-                studentClass: user.studentClass, 
-                board: user.board, 
-                stream: user.stream 
-            }
-        });
-    } catch (err) {
-        console.error("Social login overall error:", err);
-        res.status(500).json({ error: "Social login failed." });
-    }
-});
-
-// FORGOT PASSWORD
-app.post('/api/auth/forgot-password', async (req: Request, res: Response) => {
-    try {
-        const { email } = req.body;
-        const user = await User.findOne({ email: email.toLowerCase() });
-        if (!user) return res.status(404).json({ error: "User not found." });
-
-        const token = crypto.randomBytes(20).toString('hex');
-        user.resetPasswordToken = token;
-        user.resetPasswordExpires = new Date(Date.now() + 3600000); // 1 hour
-        await user.save();
-
-        const transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST || 'smtp.gmail.com',
-            port: parseInt(process.env.SMTP_PORT || '587'),
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS
-            }
-        });
-
-        const mailOptions = {
-            to: user.email,
-            from: 'noreply@bodhik.com',
-            subject: 'Bodh Password Reset',
-            text: `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n` +
-                  `Please click on the following link, or paste this into your browser to complete the process:\n\n` +
-                  `http://${req.headers.host}/auth/reset/${token}\n\n` +
-                  `If you did not request this, please ignore this email and your password will remain unchanged.\n`
-        };
-
-        await transporter.sendMail(mailOptions);
-        res.json({ message: "Reset email sent." });
-    } catch (err) {
-        console.error("Forgot Pass Error:", err);
-        res.status(500).json({ error: "Failed to send reset email." });
-    }
-});
-
-app.post('/api/auth/reset-password', async (req: Request, res: Response) => {
-    try {
-        const { token, password } = req.body;
-        const user = await User.findOne({
-            resetPasswordToken: token,
-            resetPasswordExpires: { $gt: new Date() }
-        });
-
-        if (!user) return res.status(400).json({ error: "Token invalid or expired." });
-
-        user.passwordHash = await bcrypt.hash(password, 10);
-        user.resetPasswordToken = undefined;
-        user.resetPasswordExpires = undefined;
-        await user.save();
-
-        res.json({ message: "Password reset successful." });
-    } catch (err) {
-        res.status(500).json({ error: "Reset failed." });
-    }
-});
-
 app.post('/api/generate', async (req: Request, res: Response) => {
     try {
         const { text, difficulty, n_questions, language } = req.body;
@@ -315,44 +128,72 @@ app.post('/api/generate', async (req: Request, res: Response) => {
 
         const prompt = USER_TEMPLATE(text, difficulty, n_questions) + (language === "Hindi" ? "\nRespond in Hindi." : "");
 
-        const extractJSONString = (raw: string) => {
-            const firstBrace = raw.indexOf('{');
-            const lastBrace = raw.lastIndexOf('}');
-            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace >= firstBrace) {
-                return raw.substring(firstBrace, lastBrace + 1);
-            }
-            return raw;
-        };
-
         const generateWithOpenAI = async (extraInstruction = "") => {
-            const result = await openai.chat.completions.create({
-                model: "gpt-4o-mini",
-                messages: [
-                    { role: "system", content: SYSTEM_PROMPT },
-                    { role: "user", content: prompt + extraInstruction }
-                ],
-                response_format: { type: "json_object" }
-            });
-            const content = extractJSONString(result.choices[0].message.content || "{}");
-            return JSON5.parse(content);
+            const runner = async () => {
+                const result = await openai.chat.completions.create({
+                    model: "gpt-4o-mini",
+                    messages: [
+                        { role: "system", content: SYSTEM_PROMPT },
+                        { role: "user", content: prompt + extraInstruction }
+                    ],
+                    response_format: { type: "json_object" }
+                });
+                const rawContent = result.choices[0].message.content || "{}";
+                const content = extractJSONString(rawContent);
+                try {
+                    return JSON5.parse(content);
+                } catch (e) {
+                    console.error("OpenAI JSON Parse Error. Raw output:", rawContent);
+                    throw e;
+                }
+            };
+            return withRetry(runner);
         };
 
         const generateWithGemini = async () => {
-            const model = genAI.getGenerativeModel({
-                model: "gemini-2.5-flash",
-                systemInstruction: SYSTEM_PROMPT
-            });
-            const result = await model.generateContent(prompt);
-            const textResponse = result.response.text();
-            const cleanedJson = extractJSONString(textResponse);
-            return JSON5.parse(cleanedJson);
+            // Model priority: start with stable/fast models, fall back to less-demanded ones
+            const models = [
+                "gemini-2.0-flash",        // Stable GA model — primary
+                "gemini-1.5-flash",         // Proven stable fallback
+                "gemini-2.0-flash-lite",    // Lightweight, high availability
+                "gemini-1.5-flash-8b",      // Smallest, most likely available under load
+                "gemini-2.5-flash",         // Preview — only try last (503-prone under high demand)
+            ];
+            let lastError;
+
+            for (const modelName of models) {
+                try {
+                    const runner = async () => {
+                        console.log(`Attempting generation with ${modelName}...`);
+                        const model = genAI.getGenerativeModel({
+                            model: modelName,
+                            systemInstruction: SYSTEM_PROMPT
+                        });
+                        const result = await model.generateContent(prompt);
+                        const textResponse = result.response.text();
+                        const cleanedJson = extractJSONString(textResponse);
+                        try {
+                            return JSON5.parse(cleanedJson);
+                        } catch (e) {
+                            console.error(`${modelName} JSON Parse Error. Raw output:`, textResponse);
+                            throw e;
+                        }
+                    };
+                    // 2 retries with 2s initial delay (exponential backoff) before moving to next model
+                    return await withRetry(runner, 2, 2000);
+                } catch (e) {
+                    lastError = e;
+                    console.warn(`${modelName} failed, trying next fallback...`);
+                }
+            }
+            throw lastError;
         };
 
         let responseJson;
         try {
             responseJson = await generateWithOpenAI();
         } catch (openaiError: any) {
-            console.error("Primary AI failed, switching to backup...");
+            console.error("Primary AI failed or malformed, switching to backup...");
             responseJson = await generateWithGemini();
         }
 
@@ -369,17 +210,21 @@ app.post('/api/generate/question', async (req: Request, res: Response) => {
         const { text, existingQuestion, difficulty } = req.body;
         const prompt = `Context: ${text}\nExisting Question: "${existingQuestion}"\nDesired Difficulty: ${difficulty || 'Medium'}\nTask: Generate a NEW and DIFFERENT question. Return JSON only.`;
 
-        const result = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-                { role: "system", content: "You are a specialized study material generator. Return only raw JSON." },
-                { role: "user", content: prompt }
-            ],
-            response_format: { type: "json_object" }
+        const result = await withRetry(async () => {
+            return await openai.chat.completions.create({
+                model: "gpt-4o-mini",
+                messages: [
+                    { role: "system", content: "You are a specialized study material generator. Return only raw JSON." },
+                    { role: "user", content: prompt }
+                ],
+                response_format: { type: "json_object" }
+            });
         });
 
-        res.json(JSON.parse(result.choices[0].message.content || "{}"));
+        const content = extractJSONString(result.choices[0].message.content || "{}");
+        res.json(JSON5.parse(content));
     } catch (error) {
+        console.error("Regen Failed:", error);
         res.status(500).json({ error: "Failed to regenerate question." });
     }
 });
@@ -407,9 +252,9 @@ app.post('/api/tutor', async (req: Request, res: Response) => {
 // PACK & SHARING ENDPOINTS
 app.post('/api/packs/share', async (req: Request, res: Response) => {
     try {
-        const { pack, userId } = req.body;
+        const { pack } = req.body;
         const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-        
+
         const newPack = new StudyPack({
             code,
             summary: pack.summary,
@@ -417,10 +262,6 @@ app.post('/api/packs/share', async (req: Request, res: Response) => {
             keyTerms: pack.keyTerms
         });
         await newPack.save();
-
-        if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-            await User.findByIdAndUpdate(userId, { $addToSet: { history: code } });
-        }
 
         res.status(201).json({ code });
     } catch (err) {
@@ -438,31 +279,16 @@ app.get('/api/packs/:code', async (req: Request, res: Response) => {
     }
 });
 
-app.get('/api/history/:userId', async (req: Request, res: Response) => {
+// History is now handled on the frontend via localStorage
+app.get('/api/history', async (req: Request, res: Response) => {
     try {
-        const { userId } = req.params;
-        if (!mongoose.Types.ObjectId.isValid(userId)) {
-            return res.json([]); // Return empty rather than 500 for compatibility
-        }
-        const user = await User.findById(userId);
-        if (!user) return res.json([]);
-        const history = await StudyPack.find({ code: { $in: user.history } }).sort({ createdAt: -1 });
+        const { codes } = req.query;
+        if (!codes) return res.json([]);
+        const codeArray = (codes as string).split(',');
+        const history = await StudyPack.find({ code: { $in: codeArray } }).sort({ createdAt: -1 });
         res.json(history);
     } catch (err) {
         res.status(500).json({ error: "History fetch failed." });
-    }
-});
-
-app.delete('/api/history/:userId/:code', async (req: Request, res: Response) => {
-    try {
-        const { userId, code } = req.params;
-        if (!mongoose.Types.ObjectId.isValid(userId)) {
-            return res.status(400).json({ error: "Invalid User ID" });
-        }
-        await User.findByIdAndUpdate(userId, { $pull: { history: code } });
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: "Delete failed." });
     }
 });
 
@@ -513,17 +339,46 @@ app.get('/api/duel/:code/results', async (req: Request, res: Response) => {
 app.post('/api/arena/:code/join', async (req: Request, res: Response) => {
     try {
         const { code } = req.params;
-        const { user, mode } = req.body;
-        
+        const { user, avatar, mode } = req.body;
+
         // Find by code, but ensure we don't crash on invalid codes
         let arena = await ArenaSession.findOne({ code });
         if (!arena) {
-            arena = new ArenaSession({ code, participants: new Map(), mode: mode || 'duel' });
+            const pack = await StudyPack.findOne({ code });
+            const questionsClone = pack && pack.quiz ? JSON.parse(JSON.stringify(pack.quiz)) : [];
+            arena = new ArenaSession({
+                code,
+                participants: new Map(),
+                mode: mode || 'duel',
+                questions: questionsClone
+            });
+            arena.markModified('questions');
+        } else if (!arena.questions || arena.questions.length === 0) {
+            const pack = await StudyPack.findOne({ code });
+            const questionsClone = pack && pack.quiz ? JSON.parse(JSON.stringify(pack.quiz)) : [];
+            arena.questions = questionsClone;
+            arena.markModified('questions');
         }
-        
-        if (!arena.participants || !arena.participants.has(user)) {
-            arena.participants.set(user, { user, isReady: false, score: 0, hasAnswered: false, lastAnswerCorrect: null });
+
+        const participantKey = user || "Anonymous";
+        if (!arena.participants || !arena.participants.has(participantKey)) {
+            arena.participants.set(participantKey, {
+                user: participantKey,
+                avatar: avatar || 'A1',
+                isReady: false,
+                score: 0,
+                hasAnswered: false,
+                lastAnswerCorrect: null
+            });
             arena.markModified('participants');
+            arena.markModified('questions');
+            await arena.save();
+        } else if (avatar) {
+            // Update avatar if provided and player already exists
+            const p = arena.participants.get(participantKey);
+            p.avatar = avatar;
+            arena.markModified('participants');
+            arena.markModified('questions');
             await arena.save();
         }
         res.json(arena);
@@ -537,31 +392,34 @@ app.post('/api/arena/:code/ready', async (req: Request, res: Response) => {
     try {
         const { code } = req.params;
         const { user, isReady } = req.body;
-        
+
         const arena = await ArenaSession.findOne({ code });
         if (!arena) return res.status(404).json({ error: "Arena not found" });
-        
+
         const p = arena.participants.get(user);
         if (p) {
             p.isReady = isReady;
             arena.markModified('participants');
         }
-        
-        const minPlayers = arena.mode === 'fourway' ? 4 : 2;
+
+        const minPlayers = arena.mode === 'fourway' ? 3 : 2; // Min 3 for fourway, 2 for duel
         const allReady = arena.participants.size >= minPlayers && Array.from(arena.participants.values()).every((p: any) => p.isReady);
         if (allReady) {
             arena.status = 'countdown';
             // Save before starting timeout to ensure status is 'countdown'
             await arena.save();
-            
+
             setTimeout(async () => {
-                await ArenaSession.updateOne({ code }, { status: 'playing' });
+                await ArenaSession.updateOne(
+                    { code },
+                    { status: 'playing', lastQuestionStartTime: Date.now() }
+                );
             }, 3000);
             return res.json(arena);
         } else {
             arena.status = 'lobby';
         }
-        
+
         await arena.save();
         res.json(arena);
     } catch (err) {
@@ -584,38 +442,55 @@ app.post('/api/arena/:code/answer', async (req: Request, res: Response) => {
         const { user, isCorrect } = req.body;
         const arena = await ArenaSession.findOne({ code });
         if (!arena) return res.status(404).json({ error: "Arena not found" });
-        
+
         const p = arena.participants.get(user);
-        
+
         // Only record if this player hasn't answered yet
         if (p && !p.hasAnswered) {
             p.hasAnswered = true;
             p.lastAnswerCorrect = isCorrect;
-            if (isCorrect) p.score += 1;
+
+            if (isCorrect && arena.lastQuestionStartTime) {
+                // Calculate speed bonus
+                const now = Date.now();
+                const timeTaken = (now - arena.lastQuestionStartTime) / 1000;
+                const speedBonus = Math.max(0, Math.floor(10 * (1 - timeTaken / 15))); // 15s window
+                p.score += (10 + speedBonus);
+            }
+
             arena.markModified('participants');
             await arena.save();
-            
+
             const allParticipants = Array.from(arena.participants.values()) as any[];
-            const someoneGotItRight = isCorrect; // this player just got it right
             const everyoneAnswered = allParticipants.every((part: any) => part.hasAnswered);
-            
-            // Advance to next question if: correct answer OR all players have now answered (all wrong)
-            if (someoneGotItRight || everyoneAnswered) {
-                setTimeout(async () => {
-                    const refreshed = await ArenaSession.findOne({ code });
-                    if (refreshed) {
-                        refreshed.participants.forEach((part: any) => {
-                            part.hasAnswered = false;
-                            part.lastAnswerCorrect = null;
-                        });
-                        refreshed.markModified('participants');
-                        const pack = await StudyPack.findOne({ code });
-                        const totalQ = pack?.quiz?.length || 0;
-                        refreshed.currentQuestionIndex += 1;
-                        if (refreshed.currentQuestionIndex >= totalQ) refreshed.status = 'finished';
-                        await refreshed.save();
-                    }
-                }, 2500);
+
+            // Advance to next question after delay
+            if (everyoneAnswered || (isCorrect && allParticipants.length > 1)) {
+                // In duel mode, maybe we don't wait for everyone if someone got it right? 
+                // Actually, for fairness in multiplayer, we wait for everyone OR a majority.
+                // But let's follow the "fast" rule: if everyone answered, move on.
+                if (everyoneAnswered) {
+                    setTimeout(async () => {
+                        const refreshed = await ArenaSession.findOne({ code });
+                        if (refreshed) {
+                            refreshed.participants.forEach((part: any) => {
+                                part.hasAnswered = false;
+                                part.lastAnswerCorrect = null;
+                            });
+                            refreshed.markModified('participants');
+
+                            refreshed.currentQuestionIndex += 1;
+                            const totalQ = refreshed.questions?.length || 0;
+
+                            if (refreshed.currentQuestionIndex >= totalQ) {
+                                refreshed.status = 'finished';
+                            } else {
+                                refreshed.lastQuestionStartTime = Date.now();
+                            }
+                            await refreshed.save();
+                        }
+                    }, 2500);
+                }
             }
         }
         res.json(arena);
@@ -663,46 +538,20 @@ const CORE_RESOURCES: any = {
     }
 };
 
-app.get('/api/user/profile/:userId', async (req: Request, res: Response) => {
-    try {
-        const user = await User.findById(req.params.userId);
-        if (!user) return res.status(404).json({ error: "User not found" });
-        res.json({
-            studentClass: user.studentClass,
-            board: user.board,
-            stream: user.stream,
-            ongoingBook: user.ongoingBook,
-            ongoingLecture: user.ongoingLecture,
-            name: user.name,
-            email: user.email
-        });
-    } catch (err) {
-        res.status(500).json({ error: "Failed to fetch profile" });
-    }
-});
-
-app.put('/api/user/profile/:userId', async (req: Request, res: Response) => {
-    try {
-        const update = req.body;
-        const user = await User.findByIdAndUpdate(req.params.userId, update, { new: true });
-        res.json(user);
-    } catch (err) {
-        res.status(500).json({ error: "Update failed" });
-    }
-});
+// Profile endpoint removed - Handled by localStorage on frontend
 
 app.get('/api/resources/:class/:stream?', async (req: Request, res: Response) => {
     try {
         const { class: sClass, stream } = req.params;
         const cls = parseInt(sClass);
         let resources = [];
-        
+
         if (cls === 10) {
             resources = CORE_RESOURCES[10];
         } else if (CORE_RESOURCES[cls]) {
             resources = CORE_RESOURCES[cls][stream || 'Science'] || CORE_RESOURCES[cls]['Science'];
         }
-        
+
         res.json(resources);
     } catch (err) {
         res.status(500).json({ error: "Failed to fetch resources" });
@@ -716,11 +565,11 @@ app.get('/api/library/:class/:subject?', async (req: Request, res: Response) => 
         { id: 'ncert-s-10', title: 'NCERT Science', class: 10, subject: 'Science', url: 'https://ncert.nic.in/textbook.php?jesc1=0-16' },
         { id: 'ncert-en-10', title: 'First Flight (English)', class: 10, subject: 'English', url: 'https://ncert.nic.in/textbook.php?jeff1=0-11' },
         { id: 'ncert-ss-10', title: 'India and the Contemporary World II', class: 10, subject: 'SST', url: 'https://ncert.nic.in/textbook.php?jess3=0-8' },
-        
+
         { id: 'ncert-p-11', title: 'NCERT Physics Part I', class: 11, subject: 'Physics', url: 'https://ncert.nic.in/textbook.php?keph1=0-8' },
         { id: 'ncert-c-11', title: 'Chemistry Part I', class: 11, subject: 'Chemistry', url: 'https://ncert.nic.in/textbook.php?kech1=0-7' },
         { id: 'ncert-b-11', title: 'Biology Textbook', class: 11, subject: 'Biology', url: 'https://ncert.nic.in/textbook.php?kebo1=0-22' },
-        
+
         { id: 'ncert-p-12', title: 'Physics Part II', class: 12, subject: 'Physics', url: 'https://ncert.nic.in/textbook.php?leph2=0-8' },
         { id: 'ncert-c-12', title: 'Chemistry Part II', class: 12, subject: 'Chemistry', url: 'https://ncert.nic.in/textbook.php?lech2=0-7' },
         { id: 'ncert-b-12', title: 'NCERT Biology', class: 12, subject: 'Biology', url: 'https://ncert.nic.in/textbook.php?lebo1=0-16' },

@@ -507,7 +507,7 @@ export default function DashboardPage() {
                 setQuiz(data.quiz);
                 setKeyTerms(data.key_terms);
                 setShareCode(data.id);
-                setView('engine');
+                setView('create');
                 setActiveTab('summary');
             } else {
                 setError(data.error);

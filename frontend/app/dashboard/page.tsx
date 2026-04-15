@@ -168,7 +168,7 @@ export default function DashboardPage() {
 
     // Show profile overlay on first visit
     useEffect(() => {
-        if (!hasProfile) setShowProfileOverlay(true);
+        // if (!hasProfile) setShowProfileOverlay(true);
     }, [hasProfile]);
 
     // Fetch history from backend using localStorage codes

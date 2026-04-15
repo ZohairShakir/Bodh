@@ -832,3 +832,241 @@ footer p, .flinks a { @apply text-white/25 text-[11.5px] no-underline cursor-non
     font-weight: 600;
     color: rgba(255, 255, 255, 0.6);
 }
+
+/* ── ARENA GAME FEEL ANIMATIONS ── */
+
+/* Player Join Pop */
+@keyframes arena-player-join {
+    0% { transform: scale(0.5); opacity: 0; }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); opacity: 1; }
+}
+.arena-player-join {
+    animation: arena-player-join 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Pulsing Wait Indicator */
+@keyframes arena-pulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.05); }
+}
+.arena-pulse {
+    animation: arena-pulse 2s ease-in-out infinite;
+}
+
+/* Countdown Animation */
+@keyframes arena-countdown-pop {
+    0% { transform: scale(2); opacity: 0; }
+    20% { transform: scale(1); opacity: 1; }
+    80% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(0.5); opacity: 0; }
+}
+.arena-countdown-pop {
+    animation: arena-countdown-pop 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Question Slide Up */
+@keyframes arena-question-enter {
+    0% { transform: translateY(20px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+}
+.arena-question-enter {
+    animation: arena-question-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Option Staggered Reveal */
+@keyframes arena-option-reveal {
+    0% { transform: translateX(-10px); opacity: 0; }
+    100% { transform: translateX(0); opacity: 1; }
+}
+.arena-option-reveal {
+    animation: arena-option-reveal 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Option Click Feedback */
+@keyframes arena-option-select {
+    0% { transform: scale(1); }
+    50% { transform: scale(0.96); }
+    100% { transform: scale(1); }
+}
+.arena-option-select {
+    animation: arena-option-select 0.15s ease-out forwards;
+}
+
+/* Option Hover */
+.arena-option-hover {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.arena-option-hover:hover {
+    transform: translateX(4px);
+    background: rgba(139, 92, 246, 0.1);
+    border-color: rgba(139, 92, 246, 0.3);
+}
+
+/* Timer Progress Bar */
+@keyframes timer-shrink {
+    0% { width: 100%; }
+    100% { width: 0%; }
+}
+.timer-bar {
+    animation: timer-shrink linear forwards;
+}
+
+/* Correct Answer Flash */
+@keyframes arena-correct-flash {
+    0% { background-color: rgba(16, 185, 129, 0.3); }
+    100% { background-color: transparent; }
+}
+.arena-correct-flash {
+    animation: arena-correct-flash 0.5s ease-out forwards;
+}
+
+/* Wrong Answer Flash */
+@keyframes arena-wrong-flash {
+    0% { background-color: rgba(239, 68, 68, 0.3); }
+    100% { background-color: transparent; }
+}
+.arena-wrong-flash {
+    animation: arena-wrong-flash 0.5s ease-out forwards;
+}
+
+/* Opponent Answered Pulse */
+@keyframes arena-opp-answered {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.7); }
+    70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(250, 204, 21, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); }
+}
+.arena-opp-answered {
+    animation: arena-opp-answered 0.6s ease-out;
+}
+
+/* Speed Indicator */
+@keyframes arena-speed-flash {
+    0% { transform: scale(0); opacity: 0; }
+    50% { transform: scale(1.2); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+}
+.arena-speed-flash {
+    animation: arena-speed-flash 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* HP Bar Damage */
+@keyframes hp-bar-damage {
+    0% { filter: brightness(1); }
+    50% { filter: brightness(1.5) saturate(2); }
+    100% { filter: brightness(1); }
+}
+.hp-bar-damage {
+    animation: hp-bar-damage 0.3s ease-out;
+}
+
+/* HP Bar Shake */
+@keyframes hp-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-4px); }
+    40% { transform: translateX(4px); }
+    60% { transform: translateX(-2px); }
+    80% { transform: translateX(2px); }
+}
+.hp-shake {
+    animation: hp-shake 0.4s ease-out;
+}
+
+/* Screen Shake */
+@keyframes screen-shake {
+    0%, 100% { transform: translate(0, 0); }
+    10% { transform: translate(-5px, -5px); }
+    20% { transform: translate(5px, 5px); }
+    30% { transform: translate(-3px, 3px); }
+    40% { transform: translate(3px, -3px); }
+    50% { transform: translate(-2px, 2px); }
+    60% { transform: translate(2px, -2px); }
+    70% { transform: translate(-1px, 1px); }
+    80% { transform: translate(1px, -1px); }
+}
+.screen-shake {
+    animation: screen-shake 0.3s ease-out;
+}
+
+/* Leaderboard Position Change */
+@keyframes leaderboard-shift-up {
+    0% { transform: translateY(20px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+}
+.leaderboard-shift {
+    animation: leaderboard-shift-up 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Winner Reveal */
+@keyframes winner-reveal {
+    0% { transform: scale(0.9); opacity: 0; }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); opacity: 1; }
+}
+.winner-reveal {
+    animation: winner-reveal 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Confetti Burst */
+@keyframes confetti-fall {
+    0% { transform: translateY(-100px) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(100px) rotate(720deg); opacity: 0; }
+}
+.confetti {
+    animation: confetti-fall 1.5s ease-out forwards;
+}
+
+/* Score Increment */
+@keyframes score-pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3); color: #10b981; }
+    100% { transform: scale(1); }
+}
+.score-pop {
+    animation: score-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Round Transition */
+@keyframes round-flash {
+    0% { background-color: rgba(139, 92, 246, 0.2); }
+    100% { background-color: transparent; }
+}
+.round-flash {
+    animation: round-flash 0.3s ease-out;
+}
+
+/* Prep Phase Zoom */
+@keyframes prep-zoom {
+    0% { transform: scale(0.95); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+.prep-zoom {
+    animation: prep-zoom 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Reveal Badge Pop */
+@keyframes badge-pop {
+    0% { transform: scale(0) translateY(10px); opacity: 0; }
+    60% { transform: scale(1.2) translateY(-2px); }
+    100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+.badge-pop {
+    animation: badge-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Event Feed Slide */
+@keyframes event-slide-in {
+    0% { transform: translateX(20px); opacity: 0; }
+    100% { transform: translateX(0); opacity: 1; }
+}
+.event-slide-in {
+    animation: event-slide-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Transition timing utilities */
+.duration-fast { transition-duration: 200ms; }
+.duration-normal { transition-duration: 300ms; }
+.duration-slow { transition-duration: 500ms; }
+
+.ease-snap { transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+.ease-bounce { transition-timing-function: cubic-bezier(0.68, -0.55, 0.265, 1.55); }

@@ -367,6 +367,8 @@ app.post('/api/arena/:code/join', async (req: Request, res: Response) => {
                 avatar: avatar || 'A1',
                 isReady: false,
                 score: 0,
+                hp: 100,
+                totalCorrect: 0,
                 hasAnswered: false,
                 lastAnswerCorrect: null
             });
@@ -384,9 +386,135 @@ app.post('/api/arena/:code/join', async (req: Request, res: Response) => {
         res.json(arena);
     } catch (err) {
         console.error("Join Arena Error:", err);
-        res.status(500).json({ error: "Lobby join failed." });
+        res.status(500).json({ error: "Failed to join arena" });
     }
 });
+
+const arenaTimers = new Map<string, NodeJS.Timeout>();
+const resolvingRounds = new Map<string, boolean>();
+
+const resolveRound = async (code: string) => {
+    if (resolvingRounds.get(code)) return;
+    resolvingRounds.set(code, true);
+
+    try {
+        const arena = await ArenaSession.findOne({ code });
+        if (!arena || arena.status !== 'playing') return; // already resolved
+        
+        // clear timer just in case it was called manually
+        const timer = arenaTimers.get(code);
+        if (timer) clearTimeout(timer);
+        arenaTimers.delete(code);
+
+        const allParticipants = Array.from(arena.participants.values()) as any[];
+        
+        // Correct players sorted by answerTime
+        const correctPlayers = allParticipants.filter(p => p.hasAnswered && p.lastAnswerCorrect);
+        correctPlayers.sort((a, b) => (a.answerTime || 0) - (b.answerTime || 0));
+
+        if (arena.mode === 'duel') {
+            const fastest = correctPlayers[0];
+            const second = correctPlayers[1];
+
+            for (const p of allParticipants) {
+                if (p.hasAnswered && p.lastAnswerCorrect) {
+                    const isFastest = fastest && fastest.user === p.user;
+                    const points = isFastest ? 150 : 120;
+                    const dmg = isFastest ? 35 : 25;
+                    p.score += points;
+                    p.totalCorrect = (p.totalCorrect || 0) + 1;
+
+                    // Apply damage to opponent
+                    const opponent = allParticipants.find(x => x.user !== p.user);
+                    if (opponent) {
+                        const oppObj = arena.participants.get(opponent.user);
+                        oppObj.hp = Math.max(0, oppObj.hp - dmg);
+                    }
+                }
+            }
+        } else {
+            const pointsArray = [150, 130, 110, 100];
+            for (let i = 0; i < correctPlayers.length; i++) {
+                const p = correctPlayers[i];
+                const pObj = arena.participants.get(p.user);
+                pObj.score += pointsArray[i] || 100;
+                pObj.totalCorrect = (pObj.totalCorrect || 0) + 1;
+            }
+        }
+
+        // Set status to reveal
+        arena.status = 'reveal';
+        arena.markModified('participants');
+        await arena.save();
+
+        // 4s reveal phase, then prep or finished
+        setTimeout(async () => {
+            const refreshed = await ArenaSession.findOne({ code });
+            if (!refreshed) return;
+
+            let isGameOver = false;
+            const totalQ = refreshed.questions?.length || 0;
+            
+            if (refreshed.mode === 'duel') {
+                 const parts = Array.from(refreshed.participants.values()) as any[];
+                 const someDead = parts.some(p => p.hp <= 0);
+                 if (someDead || refreshed.currentQuestionIndex + 1 >= Math.min(3, totalQ)) {
+                     isGameOver = true;
+                 }
+            } else {
+                 if (refreshed.currentQuestionIndex + 1 >= totalQ) {
+                     isGameOver = true;
+                 }
+            }
+
+            if (isGameOver) {
+                refreshed.status = 'finished';
+                
+                // Determine winner
+                const parts = Array.from(refreshed.participants.values()) as any[];
+                parts.sort((a, b) => b.score - a.score);
+                if (parts.length > 0) {
+                    const highestScore = parts[0].score;
+                    parts.forEach(p => {
+                        if (p.score === highestScore) p.isWinner = true;
+                    });
+                }
+            } else {
+                refreshed.status = 'prep';
+                refreshed.currentQuestionIndex += 1;
+                refreshed.participants.forEach((part: any) => {
+                    part.hasAnswered = false;
+                    part.lastAnswerCorrect = null;
+                    part.answerTime = null;
+                });
+            }
+            refreshed.markModified('participants');
+            await refreshed.save();
+
+            // Next phase after 3s if prep
+            if (refreshed.status === 'prep') {
+                setTimeout(async () => {
+                    const playingArena = await ArenaSession.findOne({ code });
+                    if (playingArena && playingArena.status === 'prep') {
+                        playingArena.status = 'playing';
+                        playingArena.lastQuestionStartTime = Date.now();
+                        await playingArena.save();
+                        
+                        // Set 12.5s timer for the round
+                        const t = setTimeout(() => resolveRound(code), 12500);
+                        arenaTimers.set(code, t);
+                    }
+                }, 3000);
+            }
+
+        }, 4000);
+    } catch (err) {
+        console.error("Resolve round error:", err);
+    } finally {
+        // Only release lock after a slight buffer to prevent immediate re-entry before status strictly applies
+        setTimeout(() => resolvingRounds.delete(code), 500);
+    }
+};
 
 app.post('/api/arena/:code/ready', async (req: Request, res: Response) => {
     try {
@@ -402,18 +530,32 @@ app.post('/api/arena/:code/ready', async (req: Request, res: Response) => {
             arena.markModified('participants');
         }
 
-        const minPlayers = arena.mode === 'fourway' ? 3 : 2; // Min 3 for fourway, 2 for duel
+        const minPlayers = arena.mode === 'fourway' ? 3 : 2;
         const allReady = arena.participants.size >= minPlayers && Array.from(arena.participants.values()).every((p: any) => p.isReady);
         if (allReady) {
             arena.status = 'countdown';
-            // Save before starting timeout to ensure status is 'countdown'
             await arena.save();
 
             setTimeout(async () => {
-                await ArenaSession.updateOne(
+                const prepArena = await ArenaSession.findOneAndUpdate(
                     { code },
-                    { status: 'playing', lastQuestionStartTime: Date.now() }
+                    { status: 'prep' },
+                    { new: true }
                 );
+                
+                if (prepArena) {
+                    setTimeout(async () => {
+                        const playArena = await ArenaSession.findOneAndUpdate(
+                            { code },
+                            { status: 'playing', lastQuestionStartTime: Date.now() },
+                            { new: true }
+                        );
+                        if (playArena) {
+                            const t = setTimeout(() => resolveRound(code), 12500);
+                            arenaTimers.set(code, t);
+                        }
+                    }, 3000);
+                }
             }, 3000);
             return res.json(arena);
         } else {
@@ -449,14 +591,7 @@ app.post('/api/arena/:code/answer', async (req: Request, res: Response) => {
         if (p && !p.hasAnswered) {
             p.hasAnswered = true;
             p.lastAnswerCorrect = isCorrect;
-
-            if (isCorrect && arena.lastQuestionStartTime) {
-                // Calculate speed bonus
-                const now = Date.now();
-                const timeTaken = (now - arena.lastQuestionStartTime) / 1000;
-                const speedBonus = Math.max(0, Math.floor(10 * (1 - timeTaken / 15))); // 15s window
-                p.score += (10 + speedBonus);
-            }
+            p.answerTime = Date.now();
 
             arena.markModified('participants');
             await arena.save();
@@ -464,35 +599,12 @@ app.post('/api/arena/:code/answer', async (req: Request, res: Response) => {
             const allParticipants = Array.from(arena.participants.values()) as any[];
             const everyoneAnswered = allParticipants.every((part: any) => part.hasAnswered);
 
-            // Advance to next question after delay
-            if (everyoneAnswered || (isCorrect && allParticipants.length > 1)) {
-                // In duel mode, maybe we don't wait for everyone if someone got it right? 
-                // Actually, for fairness in multiplayer, we wait for everyone OR a majority.
-                // But let's follow the "fast" rule: if everyone answered, move on.
-                if (everyoneAnswered) {
-                    setTimeout(async () => {
-                        const refreshed = await ArenaSession.findOne({ code });
-                        if (refreshed) {
-                            refreshed.participants.forEach((part: any) => {
-                                part.hasAnswered = false;
-                                part.lastAnswerCorrect = null;
-                            });
-                            refreshed.markModified('participants');
-
-                            refreshed.currentQuestionIndex += 1;
-                            const totalQ = refreshed.questions?.length || 0;
-
-                            if (refreshed.currentQuestionIndex >= totalQ) {
-                                refreshed.status = 'finished';
-                            } else {
-                                refreshed.lastQuestionStartTime = Date.now();
-                            }
-                            await refreshed.save();
-                        }
-                    }, 2500);
-                }
+            if (everyoneAnswered) {
+                // Instantly resolve
+                resolveRound(code);
             }
         }
+
         res.json(arena);
     } catch (err) {
         res.status(500).json({ error: "Answer submission failed." });
